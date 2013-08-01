@@ -1,5 +1,4 @@
-# Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.php
-# pylint:disable=C0103
+# pylint:disable=E1101, C0103
 
 import httplib
 import socket
@@ -10,7 +9,7 @@ from swiftclient import client
 
 from wsgidav.dav_provider import DAVProvider, DAVCollection, DAVNonCollection
 from wsgidav.dav_error import DAVError, HTTP_NOT_FOUND, HTTP_FORBIDDEN, \
-    HTTP_INTERNAL_ERROR, HTTP_TEMP_REDIRECT
+    HTTP_INTERNAL_ERROR
 
 
 class DownloadFile(object):
@@ -18,7 +17,7 @@ class DownloadFile(object):
 
     def __init__(self, storage_url, auth_token, container, objname):
         headers = {'X-Auth-Token': auth_token}
-      
+
         container = urllib.quote(container)
         objname = urllib.quote(objname)
 
@@ -30,7 +29,7 @@ class DownloadFile(object):
             self.conn = httplib.HTTPSConnection(url.netloc)
         else:
             raise Exception
-        
+
         self.conn.request('GET', path, None, headers)
         self.resp = self.conn.getresponse()
         if self.resp.status < 200 or self.resp.status >= 300:
@@ -53,7 +52,7 @@ class UploadFile(object):
         headers = {'X-Auth-Token': token,
                    'Content-Length': str(content_length),
                     'Transfer-Encoding': 'chunked'}
-      
+
         container = urllib.quote(container)
         objname = urllib.quote(objname)
 
@@ -67,15 +66,13 @@ class UploadFile(object):
             raise Exception
 
         self.conn.request('PUT', path, None, headers)
-  
+
     def write(self, data):
         self.conn.send('%x\r\n%s\r\n' % (len(data), data))
 
     def close(self):
         self.conn.send('0\r\n\r\n')
         self.conn.close()
-
-
 
 
 class ObjectResource(DAVNonCollection):
@@ -93,20 +90,20 @@ class ObjectResource(DAVNonCollection):
         self.tmpfile = None
 
     def supportRanges(self):
-        return False 
- 
+        return False
+
     def get_headers(self):
-        """ Execute HEAD object request. 
-        
+        """ Execute HEAD object request.
+
         Since this info is used in different methods (see below),
         do it once and then use this info.  """
 
         if self.headers is None:
-            try: 
-                self.headers  = client.head_object(self.storage_url,
-                                          self.auth_token,
-                                          self.container,
-                                          self.objectname)
+            try:
+                self.headers = client.head_object(self.storage_url,
+                                                  self.auth_token,
+                                                  self.container,
+                                                  self.objectname)
             except client.ClientException:
                 raise DAVError(HTTP_NOT_FOUND)
 
@@ -116,7 +113,6 @@ class ObjectResource(DAVNonCollection):
         return DownloadFile(self.storage_url, self.auth_token,
                             self.container, self.objectname)
 
-        
     def getContentLength(self):
         """ Return content length to client """
 
@@ -125,9 +121,9 @@ class ObjectResource(DAVNonCollection):
 
     def getContentType(self):
         """ TODO Return content type to client """
-        
+
         self.get_headers()
-        return "application/octet-stream" 
+        return "application/octet-stream"
 
     def getDisplayName(self):
         """ Returns name to display. """
@@ -137,7 +133,7 @@ class ObjectResource(DAVNonCollection):
         except:
             return None
         return self.objectname.strip('/').split('/')[-1]
- 
+
     def getCreationDate(self):
         """ Return creation date of object. """
 
@@ -152,7 +148,7 @@ class ObjectResource(DAVNonCollection):
 
         try:
             self.get_headers()
-        except Exception, ex:
+        except Exception:
             return None
         return self.headers.get('etag')
 
@@ -161,7 +157,7 @@ class ObjectResource(DAVNonCollection):
 
         try:
             self.get_headers()
-        except Exception, ex:
+        except Exception:
             return None
         return self.getCreationDate()
 
@@ -175,20 +171,21 @@ class ObjectResource(DAVNonCollection):
                                  self.objectname)
             self.removeAllProperties(True)
             self.removeAllLocks(True)
-        except client.ClientException, ex:
+        except client.ClientException:
             raise DAVError(HTTP_INTERNAL_ERROR)
 
     def beginWrite(self, contentType=None):
         """ Start writing new object.
 
         Currently a new file will be written to an temporary object
-        and send to object storage when client finished. This should 
-        directly stream to the proxy.  """
+        and send to object storage when client finished. This should
+        directly stream to the proxy. """
 
         content_length = self.environ.get('CONTENT_LENGTH')
-        
+
         self.tmpfile = UploadFile(self.storage_url, self.auth_token,
-                                        self.container, self.objectname, content_length)
+                                  self.container, self.objectname,
+                                  content_length)
         return self.tmpfile
 
     def endWrite(self, withErrors):
@@ -217,15 +214,15 @@ class ObjectCollection(DAVCollection):
         self.storage_url = self.environ.get('swift_storage_url')
 
     def is_subdir(self, name):
-        """ Checks if given name is a subdir. 
+        """ Checks if given name is a subdir.
 
         This is a workaround for Swift (and other object storages).
-        
+
         There are several possibilites for a given URL in the form /ABC/XYZ.
         1. /ABC/XYZ is the full path to an object. In this case there are
             more possibilites, for example get the object, check if it exists,
             put a new object under this name.
-        2. /ABC/XYZ should list the contents of container ABC with a prefix XYZ.
+        2. /ABC/XYZ should list the contents of container ABC with a prefix XYZ
 
         The latter one will return en empty result set, thus this will be used
         to differentiate between the possibilites.  """
@@ -269,14 +266,15 @@ class ObjectCollection(DAVCollection):
         return childs
 
     def getMember(self, objectname):
-        """ Get member for this ObjectCollection. 
+        """ Get member for this ObjectCollection.
 
         Checks if requested name is a subdir (see above) """
 
         if self.prefix and self.prefix not in objectname:
             objectname = self.prefix + objectname
         if self.is_subdir(objectname):
-            return ObjectCollection(self.container, self.environ, prefix=objectname)
+            return ObjectCollection(self.container, self.environ,
+                                    prefix=objectname)
         else:
             return ObjectResource(self.container, objectname, self.environ)
 
@@ -302,25 +300,27 @@ class ObjectCollection(DAVCollection):
         return True
 
     def moveRecursive(self, newname):
-        """ Move/rename a container. 
-        
+        """ Move/rename a container.
+
         This is only working for empty containers. Required by Windows
         Explorer, because it creates a folder "New folder" first.
-        
-        For all other requests this will simply raise an exception 
+
+        For all other requests this will simply raise an exception
         and return HTTP_FORBIDDEN """
 
         oldname = self.path.strip('/')
         newname = newname.strip('/')
 
-        if '/' not in oldname: #Pseudofolder?
+        if '/' not in oldname:  # Pseudofolder?
             try:
-                client.delete_container(self.storage_url, self.auth_token, oldname)
-                client.put_container(self.storage_url, self.auth_token, newname)
+                client.delete_container(self.storage_url, self.auth_token,
+                                        oldname)
+                client.put_container(self.storage_url, self.auth_token,
+                                     newname)
             except client.ClientException:
-                raise DAVError(HTTP_FORBIDDEN)               
+                raise DAVError(HTTP_FORBIDDEN)
         else:
-            raise DAVError(HTTP_FORBIDDEN)               
+            raise DAVError(HTTP_FORBIDDEN)
 
 
 class ContainerCollection(DAVCollection):
@@ -330,7 +330,7 @@ class ContainerCollection(DAVCollection):
 
         self.auth_token = self.environ.get('swift_auth_token')
         self.storage_url = self.environ.get('swift_storage_url')
-    
+
     def getMemberNames(self):
         _, containers = client.get_account(self.storage_url, self.auth_token)
         return [container['name'].encode("utf8") for container in containers]
@@ -344,10 +344,9 @@ class ContainerCollection(DAVCollection):
         except client.ClientException, ex:
             if '404' in ex:
                 raise DAVError(HTTP_NOT_FOUND)
- 
+
     def getDisplayName(self):
         return '/'
-
 
     def supportModified(self):
         return False
@@ -356,7 +355,7 @@ class ContainerCollection(DAVCollection):
         """ Return CreationDate for container.
 
         Simply return 0.0 (epoch) since containers don't have this info """
-        return 0.0 
+        return 0.0
 
     def delete(self):
         """ Delete a container. """
@@ -371,7 +370,7 @@ class ContainerCollection(DAVCollection):
         return False
 
     def getDirectoryInfo(self):
-        """ TODO: Should return cached dict of containers. This will reduce the 
+        """ TODO: Should return cached dict of containers. This will reduce the
         number of requests drastically """
         return None
 
@@ -380,10 +379,10 @@ class ContainerCollection(DAVCollection):
 
     def createCollection(self, name):
         """ Puts an empty object to the storage """
-        
+
         client.put_container(self.storage_url, self.auth_token, name)
 
-    
+
 class SwiftProvider(DAVProvider):
     def __init__(self):
         super(SwiftProvider, self).__init__()
@@ -403,15 +402,15 @@ class WsgiDAVDomainController(object):
 
     def __repr__(self):
         return self.__class__.__name__
-    
-    def getDomainRealm(self, inputURL, environ):
+
+    def getDomainRealm(self, _inputURL, _environ):
         return "/"
-   
-    def requireAuthentication(self, realmname, environ):
+
+    def requireAuthentication(self, _realmname, _environ):
         return True
-    
-    def authDomainUser(self, realmname, username, password, environ):
-        """Returns True if this username/password pair is valid for the realm, 
+
+    def authDomainUser(self, _realmname, username, password, environ):
+        """Returns True if this username/password pair is valid for the realm,
         False otherwise. Used for basic authentication."""
 
         try:
