@@ -104,15 +104,8 @@ class ObjectResource(DAVNonCollection):
                 bytes = self.objects[self.objectname].get('bytes')
                 hash = self.objects[self.objectname].get('hash')
                 self.headers = {'content-length': bytes, 'etag': hash, }
-
-        if self.headers is None:
-            try: 
-                self.headers  = client.head_object(self.storage_url,
-                                                   self.auth_token,
-                                                   self.container,
-                                                   self.objectname)
-            except client.ClientException:
-                    raise DAVError(HTTP_NOT_FOUND)
+            else:
+                raise DAVError(HTTP_NOT_FOUND)
 
     def getContent(self):
         """ Stream object to client """
@@ -253,6 +246,10 @@ class ObjectCollection(DAVCollection):
                                           container=self.container,
                                           delimiter='/',
                                           prefix=name)
+        for obj in objects:
+            name = obj.get('name')
+            self.objects = {name: obj, }
+ 
         if len(objects) > 0 and 'subdir' in objects[0]:
             return True
 

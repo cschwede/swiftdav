@@ -179,6 +179,9 @@ class CloudDavTest(unittest.TestCase):
                           }
 
         swiftclient.client.head_container = mock.Mock()
+        swiftclient.client.get_container = mock.Mock(
+            return_value=([], [{'name': 'object', 'bytes': '12'}]))
+
         swiftclient.client.head_object = mock.Mock(return_value=object_headers)
         
         with mock.patch('swiftdav.swiftdav.DownloadFile') as mock_class:
