@@ -76,10 +76,11 @@ class UploadFile(object):
 
 
 class ObjectResource(DAVNonCollection):
-    def __init__(self, container, objectname, environ):
+    def __init__(self, container, objectname, environ, objects=None):
         self.container = container
         self.objectname = objectname
         self.environ = environ
+        self.objects = objects
 
         path = '/' + self.container + '/' + self.objectname
         DAVNonCollection.__init__(self, path, environ)
@@ -99,13 +100,20 @@ class ObjectResource(DAVNonCollection):
         do it once and then use this info.  """
 
         if self.headers is None:
-            try:
-                self.headers = client.head_object(self.storage_url,
-                                                  self.auth_token,
-                                                  self.container,
-                                                  self.objectname)
+            if self.objects and self.objectname in self.objects:
+                self.headers = {
+                    'content-length': self.objects[self.objectname].get('bytes'),
+                    'etag': self.objects[self.objectname].get('hash'),
+                }
+
+        if self.headers is None:
+            try: 
+                self.headers  = client.head_object(self.storage_url,
+                                                   self.auth_token,
+                                                   self.container,
+                                                   self.objectname)
             except client.ClientException:
-                raise DAVError(HTTP_NOT_FOUND)
+                    raise DAVError(HTTP_NOT_FOUND)
 
     def getContent(self):
         """ Stream object to client """
@@ -212,6 +220,7 @@ class ObjectCollection(DAVCollection):
             self.prefix += '/'
         self.auth_token = self.environ.get('swift_auth_token')
         self.storage_url = self.environ.get('swift_storage_url')
+        self.objects = {}
 
     def is_subdir(self, name):
         """ Checks if given name is a subdir.
@@ -228,6 +237,17 @@ class ObjectCollection(DAVCollection):
         to differentiate between the possibilites.  """
 
         name = name.rstrip('/')
+
+        obj = self.objects.get(name)
+        if obj:
+            if 'subdir' in obj:
+                return True
+            if obj.get('content_type') == 'application/directory':
+                return True
+            if 'name' in obj:
+                return False
+
+        # TODO: remove this fallback
 
         _, objects = client.get_container(self.storage_url,
                                           self.auth_token,
@@ -248,12 +268,16 @@ class ObjectCollection(DAVCollection):
                                           container=self.container,
                                           delimiter='/',
                                           prefix=self.prefix)
+
+        self.objects = {}
+
         childs = []
         for obj in objects:
             name = obj.get('name')
             if name:
                 name = name.encode("utf8")
                 childs.append(name)
+                self.objects[name] = obj
             subdir = obj.get('subdir')
             if subdir:
                 subdir = subdir.rstrip('/')
@@ -263,6 +287,7 @@ class ObjectCollection(DAVCollection):
                 # 2. subdir entry with trailing '/'
                 if subdir not in childs:
                     childs.append(subdir)
+                    self.objects[subdir] = obj
         return childs
 
     def getMember(self, objectname):
@@ -276,7 +301,7 @@ class ObjectCollection(DAVCollection):
             return ObjectCollection(self.container, self.environ,
                                     prefix=objectname)
         else:
-            return ObjectResource(self.container, objectname, self.environ)
+            return ObjectResource(self.container, objectname, self.environ, self.objects)
 
     def delete(self):
         """ Delete a container. """
@@ -370,8 +395,6 @@ class ContainerCollection(DAVCollection):
         return False
 
     def getDirectoryInfo(self):
-        """ TODO: Should return cached dict of containers. This will reduce the
-        number of requests drastically """
         return None
 
     def getEtag(self):
