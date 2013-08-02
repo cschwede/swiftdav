@@ -51,7 +51,7 @@ class UploadFile(object):
     def __init__(self, storage_url, token, container, objname, content_length):
         headers = {'X-Auth-Token': token,
                    'Content-Length': str(content_length),
-                    'Transfer-Encoding': 'chunked'}
+                   'Transfer-Encoding': 'chunked'}
 
         container = urllib.quote(container)
         objname = urllib.quote(objname)
@@ -101,10 +101,9 @@ class ObjectResource(DAVNonCollection):
 
         if self.headers is None:
             if self.objects and self.objectname in self.objects:
-                self.headers = {
-                    'content-length': self.objects[self.objectname].get('bytes'),
-                    'etag': self.objects[self.objectname].get('hash'),
-                }
+                bytes = self.objects[self.objectname].get('bytes')
+                hash = self.objects[self.objectname].get('hash')
+                self.headers = {'content-length': bytes, 'etag': hash, }
 
         if self.headers is None:
             try: 
@@ -264,10 +263,10 @@ class ObjectCollection(DAVCollection):
 
     def getMemberNames(self):
         _stat, objects = client.get_container(self.storage_url,
-                                          self.auth_token,
-                                          container=self.container,
-                                          delimiter='/',
-                                          prefix=self.prefix)
+                                              self.auth_token,
+                                              container=self.container,
+                                              delimiter='/',
+                                              prefix=self.prefix)
 
         self.objects = {}
 
@@ -301,7 +300,8 @@ class ObjectCollection(DAVCollection):
             return ObjectCollection(self.container, self.environ,
                                     prefix=objectname)
         else:
-            return ObjectResource(self.container, objectname, self.environ, self.objects)
+            return ObjectResource(self.container, objectname,
+                                  self.environ, self.objects)
 
     def delete(self):
         """ Delete a container. """
@@ -315,9 +315,9 @@ class ObjectCollection(DAVCollection):
     def createEmptyResource(self, name):
         """ Puts an empty object to the storage """
         client.put_object(self.storage_url,
-                              self.auth_token,
-                              self.container,
-                              name)
+                          self.auth_token,
+                          self.container,
+                          name)
 
     def supportRecursiveMove(self, destPath):
         """ Simulate support for RecurisveMove """
