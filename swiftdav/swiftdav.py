@@ -175,11 +175,7 @@ class ObjectResource(DAVNonCollection):
             raise DAVError(HTTP_INTERNAL_ERROR)
 
     def beginWrite(self, contentType=None):
-        """ Start writing new object.
-
-        Currently a new file will be written to an temporary object
-        and send to object storage when client finished. This should
-        directly stream to the proxy. """
+        """ Start writing new object. """
 
         content_length = self.environ.get('CONTENT_LENGTH')
 
@@ -189,9 +185,7 @@ class ObjectResource(DAVNonCollection):
         return self.tmpfile
 
     def endWrite(self, withErrors):
-        """ Edn writing new object.
-
-        Finally the temporary file will be uploaded to the storage.  """
+        """ Close stream at the end. """
 
         self.tmpfile.close()
 
@@ -317,7 +311,7 @@ class ObjectCollection(DAVCollection):
                           name)
 
     def supportRecursiveMove(self, destPath):
-        """ Simulate support for RecurisveMove """
+        """ Simulate support for RecursiveMove """
 
         return True
 
