@@ -100,10 +100,10 @@ class ObjectResource(DAVNonCollection):
         do it once and then use this info.  """
 
         if self.headers is None:
-            if self.objects and self.objectname in self.objects:
-                bytes = self.objects[self.objectname].get('bytes')
-                hash = self.objects[self.objectname].get('hash')
-                self.headers = {'content-length': bytes, 'etag': hash, }
+            data = self.objects.get(self.objectname)
+            if data:
+                self.headers = {'content-length': data.get('bytes'), 
+                                'etag': data.get('hash'), }
             else:
                 try:
                     self.headers = client.head_object(self.storage_url,
