@@ -105,7 +105,13 @@ class ObjectResource(DAVNonCollection):
                 hash = self.objects[self.objectname].get('hash')
                 self.headers = {'content-length': bytes, 'etag': hash, }
             else:
-                raise DAVError(HTTP_NOT_FOUND)
+                try:
+                    self.headers = client.head_object(self.storage_url,
+                                                      self.auth_token,
+                                                      self.container,
+                                                      self.objectname)
+                except client.ClientException:
+                    raise DAVError(HTTP_NOT_FOUND)
 
     def getContent(self):
         """ Stream object to client """
