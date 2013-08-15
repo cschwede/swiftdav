@@ -151,15 +151,47 @@ class CloudDavTest(unittest.TestCase):
                                                                self.auth_token,
                                                                'container')
 
-    """
-    def test_rename_object(self):
+    def test_rename_pseudofolder(self):
         " Object copy/move/rename is not support -> 403 Forbidden expected"
         app = self.app
 
+        swiftclient.client.get_account = mock.Mock(return_value=(None,
+            [{'name': 'container'}]))
+        swiftclient.client.head_container = mock.Mock()
+
+        def get_side_effect(*args, **kwargs):
+            """ Return object metadata only for object 'old' """
+            if kwargs.get('prefix') == "old":
+                return ([], [{'name': 'old', 'content_type': 'application/directory'}])
+            else:
+                return ([], [])
+        swiftclient.client.get_container = mock.Mock()
+        swiftclient.client.get_container.side_effect = get_side_effect
+
+        def head_side_effect(*args, **kwargs):
+            """ Return object metadata only for object 'old' """
+            if args[3] == "old":
+                return {'content-length': 0,
+                        'content-type': 'application/directory',
+                        'x-timestamp': float(time.time()) }
+            else:
+                raise swiftclient.client.ClientException('')
+        swiftclient.client.head_object = mock.Mock()
+        swiftclient.client.head_object.side_effect = head_side_effect
+
+        swiftclient.client.put_object = mock.Mock()
+        swiftclient.client.delete_object = mock.Mock()
+
         headers = self.headers
         headers['Destination'] = '/container/new' 
-        res = app._gen_request("MOVE", "/container/abc", headers=headers, status=403)
-    """
+        res = app._gen_request("MOVE", "/container/old", headers=headers, status=201)
+
+
+        swiftclient.client.delete_object.assert_called_with(self.storage_url,
+            self.auth_token, 'container', 'old')
+
+        swiftclient.client.put_object.assert_called_with(self.storage_url,
+            self.auth_token, 'container', 'new', content_type='application/directory')
 
     def test_rename_container(self):
         app = self.app
