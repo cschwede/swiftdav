@@ -342,7 +342,7 @@ class ObjectCollection(DAVCollection):
         oldname = self.path.strip('/')
         newname = newname.strip('/')
 
-        if '/' not in oldname:  # Pseudofolder?
+        if '/' not in oldname:  # Container rename
             try:
                 client.delete_container(self.storage_url, self.auth_token,
                                         oldname)
@@ -350,8 +350,27 @@ class ObjectCollection(DAVCollection):
                                      newname)
             except client.ClientException:
                 raise DAVError(HTTP_FORBIDDEN)
-        else:
-            raise DAVError(HTTP_FORBIDDEN)
+
+        else:  # Pseudofolder rename
+            oldname = '/'.join(oldname.split('/')[1:])
+            newname = '/'.join(newname.split('/')[1:])
+
+            try:
+                # TODO: check if pseudofolder is empty
+
+                client.put_object(self.storage_url,
+                                  self.auth_token,
+                                  self.container,
+                                  newname,
+                                  content_type='application/directory')
+
+                client.delete_object(self.storage_url,
+                                     self.auth_token,
+                                     self.container,
+                                     oldname)
+ 
+            except:
+                raise DAVError(HTTP_FORBIDDEN)
 
 
 class ContainerCollection(DAVCollection):
