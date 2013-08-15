@@ -398,8 +398,6 @@ class ContainerCollection(DAVCollection):
         return None
 
     def createCollection(self, name):
-        """ Puts an empty object to the storage """
-
         client.put_container(self.storage_url, self.auth_token, name)
 
 
