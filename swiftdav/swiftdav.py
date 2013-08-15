@@ -134,37 +134,25 @@ class ObjectResource(DAVNonCollection):
     def getDisplayName(self):
         """ Returns name to display. """
 
-        try:
-            self.get_headers()
-        except:
-            return None
+        self.get_headers()
         return self.objectname.strip('/').split('/')[-1]
 
     def getCreationDate(self):
         """ Return creation date of object. """
 
-        try:
-            self.get_headers()
-        except:
-            return None
+        self.get_headers()
         return float(self.headers.get('x-timestamp', 0))
 
     def getEtag(self):
         """ Return eTag of object. """
 
-        try:
-            self.get_headers()
-        except Exception:
-            return None
+        self.get_headers()
         return self.headers.get('etag')
 
     def getLastModified(self):
         """ Return LastModified, which is identical to CreationDate. """
 
-        try:
-            self.get_headers()
-        except Exception:
-            return None
+        self.get_headers()
         return self.getCreationDate()
 
     def delete(self):
