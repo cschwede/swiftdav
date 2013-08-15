@@ -97,21 +97,14 @@ class CloudDavTest(unittest.TestCase):
 
         app._gen_request("MKCOL", "/container/a", headers=self.headers, status=201)
         swiftclient.client.put_object.assert_called_with(self.storage_url,
-                                                         self.auth_token,
-                                                         'container',
-                                                         'a',
-                                                         content_type='application/directory')
-
+            self.auth_token, 'container', 'a', content_type='application/directory')
 
         swiftclient.client.get_container = mock.Mock(return_value=(None,
             [{'subdir': 'a'}]))
 
         app._gen_request("MKCOL", "/container/a/b", headers=self.headers, status=201)
         swiftclient.client.put_object.assert_called_with(self.storage_url,
-                                                         self.auth_token,
-                                                         'container',
-                                                         'a/b',
-                                                         content_type='application/directory')
+            self.auth_token, 'container', 'a/b', content_type='application/directory')
 
     def test_list_containers(self):
         app = self.app
