@@ -316,6 +316,19 @@ class ObjectCollection(DAVCollection):
                           self.container,
                           name)
 
+    def createCollection(self, name):
+        """ Creates an pseudo-folder """
+
+        if self.path:
+            tmp = self.path.split('/')
+            name = '/'.join(tmp[2:]) + '/' + name
+        name = name.strip('/')
+        client.put_object(self.storage_url,
+                          self.auth_token,
+                          self.container,
+                          name,
+                          content_type='application/directory')
+
     def supportRecursiveMove(self, destPath):
         """ Simulate support for RecursiveMove """
 

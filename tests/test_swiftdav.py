@@ -86,6 +86,32 @@ class CloudDavTest(unittest.TestCase):
         swiftclient.client.put_container.assert_called_with(self.storage_url,
                                                             self.auth_token,
                                                             'container')
+    def test_create_pseudofolders(self):
+        app = self.app
+
+        swiftclient.client.get_account = mock.Mock(return_value=(None,
+            [{'name': 'container'}]))
+        swiftclient.client.head_container = mock.Mock()
+        swiftclient.client.put_object = mock.Mock()
+        swiftclient.client.get_container = mock.Mock(return_value=(None, []))
+
+        app._gen_request("MKCOL", "/container/a", headers=self.headers, status=201)
+        swiftclient.client.put_object.assert_called_with(self.storage_url,
+                                                         self.auth_token,
+                                                         'container',
+                                                         'a',
+                                                         content_type='application/directory')
+
+
+        swiftclient.client.get_container = mock.Mock(return_value=(None,
+            [{'subdir': 'a'}]))
+
+        app._gen_request("MKCOL", "/container/a/b", headers=self.headers, status=201)
+        swiftclient.client.put_object.assert_called_with(self.storage_url,
+                                                         self.auth_token,
+                                                         'container',
+                                                         'a/b',
+                                                         content_type='application/directory')
 
     def test_list_containers(self):
         app = self.app
