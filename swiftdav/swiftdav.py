@@ -234,6 +234,10 @@ class ObjectCollection(DAVCollection):
                                           container=self.container,
                                           delimiter='/',
                                           prefix=name)
+
+        if len(objects) == 0:
+            return None
+
         for obj in objects:
             name = obj.get('name')
             self.objects = {name: obj, }
@@ -281,12 +285,16 @@ class ObjectCollection(DAVCollection):
 
         if self.prefix and self.prefix not in objectname:
             objectname = self.prefix + objectname
-        if self.is_subdir(objectname):
+
+        is_subdir = self.is_subdir(objectname)
+        if is_subdir:
             return ObjectCollection(self.container, self.environ,
                                     prefix=objectname)
-        else:
+        elif is_subdir == False :
             return ObjectResource(self.container, objectname,
                                   self.environ, self.objects)
+        else:
+            return None
 
     def delete(self):
         """ Delete a container. """
