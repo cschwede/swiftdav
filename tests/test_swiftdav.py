@@ -145,7 +145,6 @@ class CloudDavTest(unittest.TestCase):
                                                                'container')
 
     def test_rename_pseudofolder(self):
-        " Object copy/move/rename is not support -> 403 Forbidden expected"
         app = self.app
 
         swiftclient.client.get_account = mock.Mock(return_value=(None,
