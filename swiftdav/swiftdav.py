@@ -1,6 +1,7 @@
 # pylint:disable=E1101, C0103
 
 import httplib
+import logging
 import socket
 import urllib
 import urlparse
@@ -8,12 +9,15 @@ import urlparse
 from swiftclient import client
 
 from wsgidav.dav_provider import DAVProvider, DAVCollection, DAVNonCollection
-from wsgidav.dav_error import DAVError, HTTP_NOT_FOUND, HTTP_FORBIDDEN, \
-    HTTP_INTERNAL_ERROR
+from wsgidav.dav_error import DAVError, HTTP_NOT_FOUND, \
+    HTTP_INTERNAL_ERROR, HTTP_METHOD_NOT_ALLOWED, HTTP_CREATED
+
+requests_log = logging.getLogger("requests")
+requests_log.setLevel(logging.WARNING)
 
 
 class DownloadFile(object):
-    """ A file-like object for downloading files from Openstack Swift """
+    """A file-like object for downloading files from Openstack Swift."""
 
     def __init__(self, storage_url, auth_token, container, objname):
         headers = {'X-Auth-Token': auth_token}
@@ -46,7 +50,7 @@ class DownloadFile(object):
 
 
 class UploadFile(object):
-    """ A file-like object for uploading files to Openstack Swift """
+    """A file-like object for uploading files to Openstack Swift."""
 
     def __init__(self, storage_url, token, container, objname, content_length):
         headers = {'X-Auth-Token': token,
@@ -94,15 +98,16 @@ class ObjectResource(DAVNonCollection):
         return False
 
     def get_headers(self):
-        """ Execute HEAD object request.
+        """Execute HEAD object request.
 
         Since this info is used in different methods (see below),
-        do it once and then use this info.  """
+        do it once and then use this info.
+        """
 
         if self.headers is None:
             data = self.objects.get(self.objectname)
             if data:
-                self.headers = {'content-length': data.get('bytes'), 
+                self.headers = {'content-length': data.get('bytes'),
                                 'etag': data.get('hash'), }
             else:
                 try:
@@ -111,78 +116,88 @@ class ObjectResource(DAVNonCollection):
                                                       self.container,
                                                       self.objectname)
                 except client.ClientException:
-                    raise DAVError(HTTP_NOT_FOUND)
+                    self.headers = {}
+                    pass
 
     def getContent(self):
-        """ Stream object to client """
-
         return DownloadFile(self.storage_url, self.auth_token,
                             self.container, self.objectname)
 
     def getContentLength(self):
-        """ Return content length to client """
-
         self.get_headers()
         return int(self.headers.get('content-length'))
 
     def getContentType(self):
-        """ TODO Return content type to client """
-
         self.get_headers()
-        return "application/octet-stream"
-
-    def getDisplayName(self):
-        """ Returns name to display. """
-
-        try:
-            self.get_headers()
-        except:
-            return None
-        return self.objectname.strip('/').split('/')[-1]
+        return self.headers.get('content-type', 'application/octet-stream')
 
     def getCreationDate(self):
-        """ Return creation date of object. """
-
-        try:
-            self.get_headers()
-        except:
-            return None
+        self.get_headers()
         return float(self.headers.get('x-timestamp', 0))
 
     def getEtag(self):
-        """ Return eTag of object. """
-
-        try:
-            self.get_headers()
-        except Exception:
-            return None
-        return self.headers.get('etag')
+        self.get_headers()
+        return self.headers.get('etag', '')
 
     def getLastModified(self):
-        """ Return LastModified, which is identical to CreationDate. """
+        """Return LastModified, which is identical to CreationDate."""
 
-        try:
-            self.get_headers()
-        except Exception:
-            return None
         return self.getCreationDate()
 
     def delete(self):
-        """ Delete an object. """
+        """Delete a pseudofolder."""
+        if self.objectname[-1] == '/':
+            _, objects = client.get_container(self.storage_url,
+                                              self.auth_token,
+                                              container=self.container,
+                                              delimiter='/',
+                                              prefix=self.objectname)
+
+            for obj in objects:
+                objname = obj.get('name')
+                try:
+                    client.delete_object(self.storage_url,
+                                         self.auth_token,
+                                         self.container,
+                                         objname)
+                except client.ClientException:
+                    pass
+                except UnicodeEncodeError:
+                    pass
 
         try:
-            client.delete_object(self.storage_url,
-                                 self.auth_token,
-                                 self.container,
-                                 self.objectname)
-            self.removeAllProperties(True)
-            self.removeAllLocks(True)
+                client.delete_object(self.storage_url,
+                                     self.auth_token,
+                                     self.container,
+                                     self.objectname)
         except client.ClientException:
-            raise DAVError(HTTP_INTERNAL_ERROR)
+            pass
+
+    def handleCopy(self, destPath, depthInfinity):
+        dst = '/'.join(destPath.split('/')[2:])
+
+        try:
+            client.head_object(self.storage_url,
+                               self.auth_token,
+                               self.container,
+                               dst)
+        except client.ClientException:
+            pass
+
+        headers = {'X-Copy-From': self.path}
+        try:
+            client.put_object(self.storage_url,
+                              self.auth_token,
+                              self.container,
+                              dst,
+                              headers=headers)
+            if self.environ.get("HTTP_OVERWRITE", '') != "T":
+                raise DAVError(HTTP_CREATED)
+            return True
+        except client.ClientException:
+            return False
 
     def beginWrite(self, contentType=None):
-        """ Start writing new object. """
-
         content_length = self.environ.get('CONTENT_LENGTH')
 
         self.tmpfile = UploadFile(self.storage_url, self.auth_token,
@@ -191,9 +206,33 @@ class ObjectResource(DAVNonCollection):
         return self.tmpfile
 
     def endWrite(self, withErrors):
-        """ Close stream at the end. """
-
         self.tmpfile.close()
+        raise DAVError(HTTP_CREATED)
+
+    def supportRecursiveMove(self, destPath):
+        return False
+
+    def copyMoveSingle(self, destPath, isMove):
+        src = '/'.join(self.path.split('/')[2:])
+        dst = '/'.join(destPath.split('/')[2:])
+        src_cont = self.path.split('/')[1]
+        dst_cont = destPath.split('/')[1]
+
+        headers = {'X-Copy-From': '%s/%s' % (src_cont, src)}
+        try:
+            client.put_object(self.storage_url,
+                              self.auth_token,
+                              dst_cont,
+                              dst,
+                              headers=headers)
+
+            if isMove:
+                client.delete_object(self.storage_url,
+                                     self.auth_token,
+                                     src_cont,
+                                     src)
+        except client.ClientException:
+            pass
 
 
 class ObjectCollection(DAVCollection):
@@ -215,7 +254,7 @@ class ObjectCollection(DAVCollection):
         self.objects = {}
 
     def is_subdir(self, name):
-        """ Checks if given name is a subdir.
+        """Checks if given name is a subdir.
 
         This is a workaround for Swift (and other object storages).
 
@@ -226,36 +265,34 @@ class ObjectCollection(DAVCollection):
         2. /ABC/XYZ should list the contents of container ABC with a prefix XYZ
 
         The latter one will return en empty result set, thus this will be used
-        to differentiate between the possibilites.  """
+        to differentiate between the possibilites.
+        """
 
-        name = name.rstrip('/')
+        name = name.strip('/')
 
-        obj = self.objects.get(name)
-        if obj:
-            if 'subdir' in obj:
-                return True
-            if obj.get('content_type') == 'application/directory':
-                return True
-            if 'name' in obj:
-                return False
+        obj = self.objects.get(name, self.objects.get(name + '/'))
+        if not obj:
+            _, objects = client.get_container(self.storage_url,
+                                              self.auth_token,
+                                              container=self.container)
+            for obj in objects:
+                objname = obj.get('name')
+                self.objects[objname] = obj
 
-        # TODO: remove this fallback
+            _, objects = client.get_container(self.storage_url,
+                                              self.auth_token,
+                                              container=self.container,
+                                              delimiter='/',
+                                              prefix=name)
+            for obj in objects:
+                objname = obj.get('name', obj.get('subdir'))
+                self.objects[objname] = obj
 
-        _, objects = client.get_container(self.storage_url,
-                                          self.auth_token,
-                                          container=self.container,
-                                          delimiter='/',
-                                          prefix=name)
-        for obj in objects:
-            name = obj.get('name')
-            self.objects = {name: obj, }
- 
-        if len(objects) > 0 and 'subdir' in objects[0]:
+        obj = self.objects.get(name, self.objects.get(name + '/', {}))
+        if obj.get('subdir') or \
+                obj.get('content_type') == 'application/directory':
             return True
 
-        if len(objects) > 0 and 'content_type' in objects[0]:
-            if objects[0]['content_type'] == 'application/directory':
-                return True
         return False
 
     def getMemberNames(self):
@@ -287,75 +324,154 @@ class ObjectCollection(DAVCollection):
         return childs
 
     def getMember(self, objectname):
-        """ Get member for this ObjectCollection.
+        """Get member for this ObjectCollection.
 
-        Checks if requested name is a subdir (see above) """
+        Checks if requested name is a subdir (see above)
+        """
 
         if self.prefix and self.prefix not in objectname:
             objectname = self.prefix + objectname
         if self.is_subdir(objectname):
             return ObjectCollection(self.container, self.environ,
                                     prefix=objectname)
-        else:
+        if self.environ.get('REQUEST_METHOD') in ['PUT']:
             return ObjectResource(self.container, objectname,
                                   self.environ, self.objects)
+        try:
+            client.head_object(self.storage_url,
+                               self.auth_token,
+                               self.container,
+                               objectname)
+            return ObjectResource(self.container, objectname,
+                                  self.environ, self.objects)
+        except client.ClientException:
+            pass
+        return None
 
     def delete(self):
-        """ Delete a container. """
+        self.path = '/'.join(self.path.split('/')[2:])
+        self.path = self.path.rstrip('/') + '/'
 
-        name = self.path.strip('/')
-        try:
-            client.delete_container(self.storage_url, self.auth_token, name)
-        except client.ClientException:
-            raise DAVError(HTTP_INTERNAL_ERROR)
+        if self.path[-1] == '/':
+            objects = []
+            try:
+                _, objects = client.get_container(self.storage_url,
+                                                  self.auth_token,
+                                                  container=self.container,
+                                                  delimiter='/',
+                                                  prefix=self.path)
+            except client.ClientException:
+                pass
+            for obj in objects:
+                objname = obj.get('name')
+                try:
+                    client.delete_object(self.storage_url,
+                                         self.auth_token,
+                                         self.container,
+                                         objname)
+                except client.ClientException:
+                    pass
+
+        if '/' + self.container == self.path:
+            try:
+                client.delete_container(self.storage_url,
+                                        self.auth_token,
+                                        self.container)
+            except client.ClientException:
+                pass
+        else:
+            # Delete single object or pseudofolder entry
+            try:
+                    client.delete_object(self.storage_url,
+                                         self.auth_token,
+                                         self.container,
+                                         self.path)
+            except client.ClientException:
+                pass
 
     def createEmptyResource(self, name):
-        """ Puts an empty object to the storage """
         client.put_object(self.storage_url,
                           self.auth_token,
                           self.container,
                           name)
 
     def createCollection(self, name):
-        """ Creates an pseudo-folder """
-
+        """Create a pseudo-folder."""
         if self.path:
             tmp = self.path.split('/')
             name = '/'.join(tmp[2:]) + '/' + name
-        name = name.strip('/')
+        name = name.lstrip('/')
+
+        try:
+            client.head_object(self.storage_url,
+                               self.auth_token,
+                               self.container,
+                               name)
+            raise DAVError(HTTP_METHOD_NOT_ALLOWED)
+        except client.ClientException:
+            pass
+
+        try:
+            client.head_object(self.storage_url,
+                               self.auth_token,
+                               self.container,
+                               name + '/')
+            raise DAVError(HTTP_METHOD_NOT_ALLOWED)
+        except client.ClientException:
+            pass
+
         client.put_object(self.storage_url,
                           self.auth_token,
                           self.container,
-                          name,
+                          name + '/',
                           content_type='application/directory')
 
     def supportRecursiveMove(self, destPath):
-        """ Simulate support for RecursiveMove """
+        return False
 
-        return True
-
-    def moveRecursive(self, newname):
-        """ Move/rename a container.
-
-        This is only working for empty containers. Required by Windows
-        Explorer, because it creates a folder "New folder" first.
-
-        For all other requests this will simply raise an exception
-        and return HTTP_FORBIDDEN """
-
-        oldname = self.path.strip('/')
-        newname = newname.strip('/')
-
-        if '/' not in oldname:  # Pseudofolder?
+    def copyMoveSingle(self, destPath, isMove):
+        # Move/Rename empty container
+        if '/' + self.container == self.path:
             try:
-                client.delete_container(self.storage_url, self.auth_token,
-                                        oldname)
-                client.put_container(self.storage_url, self.auth_token,
-                                     newname)
+                client.put_container(self.storage_url,
+                                     self.auth_token,
+                                     destPath.strip('/'))
+                client.delete_container(self.storage_url,
+                                        self.auth_token,
+                                        self.container)
             except client.ClientException:
-                raise DAVError(HTTP_FORBIDDEN)
+                pass
         else:
-            raise DAVError(HTTP_FORBIDDEN)
+            src = '/'.join(self.path.split('/')[2:])
+            src = src.rstrip('/') + '/'
+            dst = '/'.join(destPath.split('/')[2:])
+
+            src_cont = self.path.split('/')[1]
+            dst_cont = destPath.split('/')[1]
+
+            _, objects = client.get_container(self.storage_url,
+                                              self.auth_token,
+                                              container=src_cont,
+                                              delimiter='/',
+                                              prefix=src)
+
+            for obj in objects:
+                objname = obj.get('name', obj.get('subdir'))
+                headers = {'X-Copy-From': '%s/%s' % (self.container, objname)}
+                newname = objname.replace(src, dst)
+                try:
+                    client.put_object(self.storage_url,
+                                      self.auth_token,
+                                      dst_cont,
+                                      newname,
+                                      headers=headers)
+                    if isMove:
+                        client.delete_object(self.storage_url,
+                                             self.auth_token,
+                                             src_cont,
+                                             objname)
+                except client.ClientException:
+                    pass
 
 
 class ContainerCollection(DAVCollection):
@@ -387,14 +503,13 @@ class ContainerCollection(DAVCollection):
         return False
 
     def getCreationDate(self):
-        """ Return CreationDate for container.
+        """Return CreationDate for container.
 
-        Simply return 0.0 (epoch) since containers don't have this info """
+        Simply return 0.0 (epoch) since containers don't have this info
+        """
         return 0.0
 
     def delete(self):
-        """ Delete a container. """
-
         name = self.path.strip('/')
         try:
             client.delete_container(self.storage_url, self.auth_token, name)
@@ -402,7 +517,7 @@ class ContainerCollection(DAVCollection):
             raise DAVError(HTTP_INTERNAL_ERROR)
 
     def supportRecursiveMove(self, destPath):
-        return False
+        return True
 
     def getDirectoryInfo(self):
         return None
@@ -442,7 +557,8 @@ class WsgiDAVDomainController(object):
 
     def authDomainUser(self, _realmname, username, password, environ):
         """Returns True if this username/password pair is valid for the realm,
-        False otherwise. Used for basic authentication."""
+        False otherwise. Used for basic authentication.
+        """
 
         try:
             username = username.replace(';', ':')

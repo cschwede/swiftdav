@@ -23,3 +23,22 @@ Quick Install
 
 4) You have to use ';' instead of ':' to separate account and user in your username,
    for example 'test;tester'. Basic auth uses ':' already to separate username and password.
+
+
+Testing
+-------
+
+swiftclient recently switched from using httplib to requests. Instead of
+rewriting the existing tests just use litmus for testing; this ensures
+that the webdav functionality passes well-known tests. You need a running
+Swift cluster for tests, a SAIO installation works fine.
+
+Source code: http://www.webdav.org/neon/litmus/
+
+    tar xzvf litmus-0.13.tar.gz 
+    cd litmus-0.13/
+    ./configure 
+    make
+    
+    swift delete litmus
+    make URL=http://127.0.0.1:8000/ CREDS='test\;tester testing' check 
