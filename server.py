@@ -7,7 +7,7 @@ proxy = 'http://127.0.0.1:8080/auth/v1.0'
 config = DEFAULT_CONFIG.copy()
 config.update({
     "provider_mapping": {"": SwiftProvider()},
-    "verbose": 0,
+    "verbose": 1,
     "propsmanager": True,
     "locksmanager": True,
     "acceptbasic": True,

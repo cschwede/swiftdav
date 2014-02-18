@@ -15,6 +15,9 @@ from wsgidav.dav_error import DAVError, HTTP_NOT_FOUND, \
 requests_log = logging.getLogger("requests")
 requests_log.setLevel(logging.WARNING)
 
+swiftclient_log = logging.getLogger("swiftclient")
+swiftclient_log.setLevel(logging.WARNING)
+
 
 class DownloadFile(object):
     """A file-like object for downloading files from Openstack Swift."""
