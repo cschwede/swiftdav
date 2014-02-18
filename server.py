@@ -1,0 +1,20 @@
+from swiftdav.swiftdav import SwiftProvider, WsgiDAVDomainController
+from waitress import serve
+from wsgidav.wsgidav_app import DEFAULT_CONFIG, WsgiDAVApp
+
+proxy = 'http://127.0.0.1:8080/auth/v1.0'
+
+config = DEFAULT_CONFIG.copy()
+config.update({
+    "provider_mapping": {"": SwiftProvider()},
+    "verbose": 0,
+    "propsmanager": True,
+    "locksmanager": True,
+    "acceptbasic": True,
+    "acceptdigest": False,
+    "defaultdigest": False,
+    "domaincontroller": WsgiDAVDomainController(proxy)
+    })
+app = WsgiDAVApp(config)
+
+serve(app, host="0.0.0.0", port=8000)
