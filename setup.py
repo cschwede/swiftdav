@@ -21,5 +21,5 @@ setup(
         'Operating System :: POSIX :: Linux',
         'Programming Language :: Python :: 2.6',
         'Environment :: No Input/Output (Daemon)'],
-    install_requires=['waitress', 'wsgidav'],
+    install_requires=['waitress', 'wsgidav', 'python-swiftclient'],
 )
