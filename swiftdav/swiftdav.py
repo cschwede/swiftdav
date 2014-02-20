@@ -96,6 +96,9 @@ class ObjectResource(DAVNonCollection):
 
         self.headers = None
         self.tmpfile = None
+        self.http_connection = client.http_connection(
+            self.storage_url,
+            insecure=self.environ.get('insecure'))
 
     def supportRanges(self):
         return False
@@ -114,10 +117,12 @@ class ObjectResource(DAVNonCollection):
                                 'etag': data.get('hash'), }
             else:
                 try:
-                    self.headers = client.head_object(self.storage_url,
-                                                      self.auth_token,
-                                                      self.container,
-                                                      self.objectname)
+                    self.headers = client.head_object(
+                        self.storage_url,
+                        self.auth_token,
+                        self.container,
+                        self.objectname,
+                        http_conn=self.http_connection)
                 except client.ClientException:
                     self.headers = {}
                     pass
@@ -154,7 +159,8 @@ class ObjectResource(DAVNonCollection):
                                               self.auth_token,
                                               container=self.container,
                                               delimiter='/',
-                                              prefix=self.objectname)
+                                              prefix=self.objectname,
+                                              http_conn=self.http_connection)
 
             for obj in objects:
                 objname = obj.get('name')
@@ -162,7 +168,8 @@ class ObjectResource(DAVNonCollection):
                     client.delete_object(self.storage_url,
                                          self.auth_token,
                                          self.container,
-                                         objname)
+                                         objname,
+                                         http_conn=self.http_connection)
                 except client.ClientException:
                     pass
                 except UnicodeEncodeError:
@@ -172,7 +179,8 @@ class ObjectResource(DAVNonCollection):
                 client.delete_object(self.storage_url,
                                      self.auth_token,
                                      self.container,
-                                     self.objectname)
+                                     self.objectname,
+                                     http_conn=self.http_connection)
         except client.ClientException:
             pass
 
@@ -183,7 +191,8 @@ class ObjectResource(DAVNonCollection):
             client.head_object(self.storage_url,
                                self.auth_token,
                                self.container,
-                               dst)
+                               dst,
+                               http_conn=self.http_connection)
         except client.ClientException:
             pass
 
@@ -193,7 +202,8 @@ class ObjectResource(DAVNonCollection):
                               self.auth_token,
                               self.container,
                               dst,
-                              headers=headers)
+                              headers=headers,
+                              http_conn=self.http_connection)
             if self.environ.get("HTTP_OVERWRITE", '') != "T":
                 raise DAVError(HTTP_CREATED)
             return True
@@ -227,13 +237,15 @@ class ObjectResource(DAVNonCollection):
                               self.auth_token,
                               dst_cont,
                               dst,
-                              headers=headers)
+                              headers=headers,
+                              http_conn=self.http_connection)
 
             if isMove:
                 client.delete_object(self.storage_url,
                                      self.auth_token,
                                      src_cont,
-                                     src)
+                                     src,
+                                     http_conn=self.http_connection)
         except client.ClientException:
             pass
 
@@ -256,6 +268,10 @@ class ObjectCollection(DAVCollection):
         self.storage_url = self.environ.get('swift_storage_url')
         self.objects = {}
 
+        self.http_connection = client.http_connection(
+            self.storage_url,
+            insecure=self.environ.get('insecure'))
+
     def is_subdir(self, name):
         """Checks if given name is a subdir.
 
@@ -277,7 +293,8 @@ class ObjectCollection(DAVCollection):
         if not obj:
             _, objects = client.get_container(self.storage_url,
                                               self.auth_token,
-                                              container=self.container)
+                                              container=self.container,
+                                              http_conn=self.http_connection)
             for obj in objects:
                 objname = obj.get('name')
                 self.objects[objname] = obj
@@ -286,7 +303,8 @@ class ObjectCollection(DAVCollection):
                                               self.auth_token,
                                               container=self.container,
                                               delimiter='/',
-                                              prefix=name)
+                                              prefix=name,
+                                              http_conn=self.http_connection)
             for obj in objects:
                 objname = obj.get('name', obj.get('subdir'))
                 self.objects[objname] = obj
@@ -303,7 +321,8 @@ class ObjectCollection(DAVCollection):
                                               self.auth_token,
                                               container=self.container,
                                               delimiter='/',
-                                              prefix=self.prefix)
+                                              prefix=self.prefix,
+                                              http_conn=self.http_connection)
 
         self.objects = {}
 
@@ -344,7 +363,8 @@ class ObjectCollection(DAVCollection):
             client.head_object(self.storage_url,
                                self.auth_token,
                                self.container,
-                               objectname)
+                               objectname,
+                               http_conn=self.http_connection)
             return ObjectResource(self.container, objectname,
                                   self.environ, self.objects)
         except client.ClientException:
@@ -358,11 +378,13 @@ class ObjectCollection(DAVCollection):
         if self.path[-1] == '/':
             objects = []
             try:
-                _, objects = client.get_container(self.storage_url,
-                                                  self.auth_token,
-                                                  container=self.container,
-                                                  delimiter='/',
-                                                  prefix=self.path)
+                _, objects = client.get_container(
+                    self.storage_url,
+                    self.auth_token,
+                    container=self.container,
+                    delimiter='/',
+                    prefix=self.path,
+                    http_conn=self.http_connection)
             except client.ClientException:
                 pass
             for obj in objects:
@@ -371,7 +393,8 @@ class ObjectCollection(DAVCollection):
                     client.delete_object(self.storage_url,
                                          self.auth_token,
                                          self.container,
-                                         objname)
+                                         objname,
+                                         http_conn=self.http_connection)
                 except client.ClientException:
                     pass
 
@@ -379,7 +402,8 @@ class ObjectCollection(DAVCollection):
             try:
                 client.delete_container(self.storage_url,
                                         self.auth_token,
-                                        self.container)
+                                        self.container,
+                                        http_conn=self.http_connection)
             except client.ClientException:
                 pass
         else:
@@ -388,7 +412,8 @@ class ObjectCollection(DAVCollection):
                     client.delete_object(self.storage_url,
                                          self.auth_token,
                                          self.container,
-                                         self.path)
+                                         self.path,
+                                         http_conn=self.http_connection)
             except client.ClientException:
                 pass
 
@@ -396,7 +421,8 @@ class ObjectCollection(DAVCollection):
         client.put_object(self.storage_url,
                           self.auth_token,
                           self.container,
-                          name)
+                          name,
+                          http_conn=self.http_connection)
 
     def createCollection(self, name):
         """Create a pseudo-folder."""
@@ -409,7 +435,8 @@ class ObjectCollection(DAVCollection):
             client.head_object(self.storage_url,
                                self.auth_token,
                                self.container,
-                               name)
+                               name,
+                               http_conn=self.http_connection)
             raise DAVError(HTTP_METHOD_NOT_ALLOWED)
         except client.ClientException:
             pass
@@ -418,7 +445,8 @@ class ObjectCollection(DAVCollection):
             client.head_object(self.storage_url,
                                self.auth_token,
                                self.container,
-                               name + '/')
+                               name + '/',
+                               http_conn=self.http_connection)
             raise DAVError(HTTP_METHOD_NOT_ALLOWED)
         except client.ClientException:
             pass
@@ -427,7 +455,8 @@ class ObjectCollection(DAVCollection):
                           self.auth_token,
                           self.container,
                           name + '/',
-                          content_type='application/directory')
+                          content_type='application/directory',
+                          http_conn=self.http_connection)
 
     def supportRecursiveMove(self, destPath):
         return False
@@ -438,10 +467,12 @@ class ObjectCollection(DAVCollection):
             try:
                 client.put_container(self.storage_url,
                                      self.auth_token,
-                                     destPath.strip('/'))
+                                     destPath.strip('/'),
+                                     http_conn=self.http_connection)
                 client.delete_container(self.storage_url,
                                         self.auth_token,
-                                        self.container)
+                                        self.container,
+                                        http_conn=self.http_connection)
             except client.ClientException:
                 pass
         else:
@@ -456,7 +487,8 @@ class ObjectCollection(DAVCollection):
                                               self.auth_token,
                                               container=src_cont,
                                               delimiter='/',
-                                              prefix=src)
+                                              prefix=src,
+                                              http_conn=self.http_connection)
 
             for obj in objects:
                 objname = obj.get('name', obj.get('subdir'))
@@ -467,12 +499,14 @@ class ObjectCollection(DAVCollection):
                                       self.auth_token,
                                       dst_cont,
                                       newname,
-                                      headers=headers)
+                                      headers=headers,
+                                      http_conn=self.http_connection)
                     if isMove:
                         client.delete_object(self.storage_url,
                                              self.auth_token,
                                              src_cont,
-                                             objname)
+                                             objname,
+                                             http_conn=self.http_connection)
                 except client.ClientException:
                     pass
 
@@ -484,16 +518,23 @@ class ContainerCollection(DAVCollection):
 
         self.auth_token = self.environ.get('swift_auth_token')
         self.storage_url = self.environ.get('swift_storage_url')
+        self.http_connection = client.http_connection(
+            self.storage_url,
+            insecure=self.environ.get('insecure'))
 
     def getMemberNames(self):
-        _, containers = client.get_account(self.storage_url, self.auth_token)
+        _, containers = client.get_account(
+            self.storage_url,
+            self.auth_token,
+            http_conn=self.http_connection)
         return [container['name'].encode("utf8") for container in containers]
 
     def getMember(self, name):
         try:
             client.head_container(self.storage_url,
                                   self.auth_token,
-                                  container=name)
+                                  container=name,
+                                  http_conn=self.http_connection)
             return ObjectCollection(name, self.environ, path=self.path)
         except client.ClientException, ex:
             if '404' in ex:
@@ -515,12 +556,16 @@ class ContainerCollection(DAVCollection):
     def delete(self):
         name = self.path.strip('/')
         try:
-            client.delete_container(self.storage_url, self.auth_token, name)
+            client.delete_container(
+                self.storage_url,
+                self.auth_token,
+                name,
+                http_conn=self.http_connection)
         except client.ClientException:
             raise DAVError(HTTP_INTERNAL_ERROR)
 
     def supportRecursiveMove(self, destPath):
-        return True
+        return False
 
     def getDirectoryInfo(self):
         return None
@@ -529,7 +574,11 @@ class ContainerCollection(DAVCollection):
         return None
 
     def createCollection(self, name):
-        client.put_container(self.storage_url, self.auth_token, name)
+        client.put_container(
+            self.storage_url,
+            self.auth_token,
+            name,
+            http_conn=self.http_connection)
 
 
 class SwiftProvider(DAVProvider):
@@ -546,8 +595,9 @@ class SwiftProvider(DAVProvider):
 
 class WsgiDAVDomainController(object):
 
-    def __init__(self, swift_auth_url):
+    def __init__(self, swift_auth_url, insecure=False):
         self.swift_auth_url = swift_auth_url
+        self.insecure = insecure
 
     def __repr__(self):
         return self.__class__.__name__
@@ -572,6 +622,7 @@ class WsgiDAVDomainController(object):
             environ["swift_usernampe"] = username
             environ["swift_password"] = password
             environ["swift_auth_url"] = self.swift_auth_url
+            environ["insecure"] = self.insecure
 
             return True
         except client.ClientException:

@@ -3,6 +3,7 @@ from waitress import serve
 from wsgidav.wsgidav_app import DEFAULT_CONFIG, WsgiDAVApp
 
 proxy = 'http://127.0.0.1:8080/auth/v1.0'
+insecure = False  # Set to True to disable SSL certificate validation
 
 config = DEFAULT_CONFIG.copy()
 config.update({
