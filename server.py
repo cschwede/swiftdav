@@ -14,7 +14,7 @@ config.update({
     "acceptbasic": True,
     "acceptdigest": False,
     "defaultdigest": False,
-    "domaincontroller": WsgiDAVDomainController(proxy)
+    "domaincontroller": WsgiDAVDomainController(proxy, insecure)
     })
 app = WsgiDAVApp(config)
 
