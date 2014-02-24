@@ -153,28 +153,6 @@ class ObjectResource(DAVNonCollection):
         return self.getCreationDate()
 
     def delete(self):
-        """Delete a pseudofolder."""
-        if self.objectname[-1] == '/':
-            _, objects = client.get_container(self.storage_url,
-                                              self.auth_token,
-                                              container=self.container,
-                                              delimiter='/',
-                                              prefix=self.objectname,
-                                              http_conn=self.http_connection)
-
-            for obj in objects:
-                objname = obj.get('name')
-                try:
-                    client.delete_object(self.storage_url,
-                                         self.auth_token,
-                                         self.container,
-                                         objname,
-                                         http_conn=self.http_connection)
-                except client.ClientException:
-                    pass
-                except UnicodeEncodeError:
-                    pass
-
         try:
                 client.delete_object(self.storage_url,
                                      self.auth_token,
@@ -329,12 +307,12 @@ class ObjectCollection(DAVCollection):
         childs = []
         for obj in objects:
             name = obj.get('name')
-            if name:
+            if name and name != self.prefix:
                 name = name.encode("utf8")
                 childs.append(name)
                 self.objects[name] = obj
             subdir = obj.get('subdir')
-            if subdir:
+            if subdir and subdir != self.prefix:
                 subdir = subdir.rstrip('/')
                 subdir = subdir.encode("utf8")
                 # there might be two entries:
@@ -372,32 +350,7 @@ class ObjectCollection(DAVCollection):
         return None
 
     def delete(self):
-        self.path = '/'.join(self.path.split('/')[2:])
-        self.path = self.path.rstrip('/') + '/'
-
-        if self.path[-1] == '/':
-            objects = []
-            try:
-                _, objects = client.get_container(
-                    self.storage_url,
-                    self.auth_token,
-                    container=self.container,
-                    delimiter='/',
-                    prefix=self.path,
-                    http_conn=self.http_connection)
-            except client.ClientException:
-                pass
-            for obj in objects:
-                objname = obj.get('name')
-                try:
-                    client.delete_object(self.storage_url,
-                                         self.auth_token,
-                                         self.container,
-                                         objname,
-                                         http_conn=self.http_connection)
-                except client.ClientException:
-                    pass
-
+        prefix = '/'.join(self.path.split('/')[2:])
         if '/' + self.container == self.path:
             try:
                 client.delete_container(self.storage_url,
@@ -407,30 +360,22 @@ class ObjectCollection(DAVCollection):
             except client.ClientException:
                 pass
         else:
-            # Delete single object or pseudofolder entry
             try:
-                    client.delete_object(self.storage_url,
-                                         self.auth_token,
-                                         self.container,
-                                         self.path,
-                                         http_conn=self.http_connection)
+                client.delete_object(self.storage_url,
+                                     self.auth_token,
+                                     self.container,
+                                     prefix + '/',
+                                     http_conn=self.http_connection)
+
             except client.ClientException:
                 pass
-
-    def createEmptyResource(self, name):
-        client.put_object(self.storage_url,
-                          self.auth_token,
-                          self.container,
-                          name,
-                          http_conn=self.http_connection)
 
     def createCollection(self, name):
         """Create a pseudo-folder."""
         if self.path:
             tmp = self.path.split('/')
             name = '/'.join(tmp[2:]) + '/' + name
-        name = name.lstrip('/')
-
+        name = name.strip('/')
         try:
             client.head_object(self.storage_url,
                                self.auth_token,
@@ -462,54 +407,59 @@ class ObjectCollection(DAVCollection):
         return False
 
     def copyMoveSingle(self, destPath, isMove):
-        # Move/Rename empty container
-        if '/' + self.container == self.path:
+        src = '/'.join(self.path.split('/')[2:])
+        dst = '/'.join(destPath.split('/')[2:])
+
+        src_cont = self.path.split('/')[1]
+        dst_cont = destPath.split('/')[1]
+
+        # Make sure target container exists
+        try:
+            client.put_container(self.storage_url,
+                                 self.auth_token,
+                                 dst_cont,
+                                 http_conn=self.http_connection)
+        except:
+            pass
+
+        _, objects = client.get_container(self.storage_url,
+                                          self.auth_token,
+                                          container=src_cont,
+                                          delimiter='/',
+                                          prefix=src,
+                                          http_conn=self.http_connection)
+
+        for obj in objects:
+            objname = obj.get('name', obj.get('subdir'))
+            headers = {'X-Copy-From': '%s/%s' % (self.container, objname)}
+            newname = objname.replace(src, dst)
+            if newname[-1] == '/':
+                newname = newname.rstrip('/') + '/'
             try:
-                client.put_container(self.storage_url,
-                                     self.auth_token,
-                                     destPath.strip('/'),
-                                     http_conn=self.http_connection)
+                client.put_object(self.storage_url,
+                                  self.auth_token,
+                                  dst_cont,
+                                  newname,
+                                  headers=headers,
+                                  http_conn=self.http_connection)
+                if isMove:
+                    client.delete_object(self.storage_url,
+                                         self.auth_token,
+                                         src_cont,
+                                         objname,
+                                         http_conn=self.http_connection)
+            except client.ClientException:
+                pass
+
+        # will only succeed if container is empty
+        if isMove:
+            try:
                 client.delete_container(self.storage_url,
                                         self.auth_token,
                                         self.container,
                                         http_conn=self.http_connection)
             except client.ClientException:
                 pass
-        else:
-            src = '/'.join(self.path.split('/')[2:])
-            src = src.rstrip('/') + '/'
-            dst = '/'.join(destPath.split('/')[2:])
-
-            src_cont = self.path.split('/')[1]
-            dst_cont = destPath.split('/')[1]
-
-            _, objects = client.get_container(self.storage_url,
-                                              self.auth_token,
-                                              container=src_cont,
-                                              delimiter='/',
-                                              prefix=src,
-                                              http_conn=self.http_connection)
-
-            for obj in objects:
-                objname = obj.get('name', obj.get('subdir'))
-                headers = {'X-Copy-From': '%s/%s' % (self.container, objname)}
-                newname = objname.replace(src, dst)
-                try:
-                    client.put_object(self.storage_url,
-                                      self.auth_token,
-                                      dst_cont,
-                                      newname,
-                                      headers=headers,
-                                      http_conn=self.http_connection)
-                    if isMove:
-                        client.delete_object(self.storage_url,
-                                             self.auth_token,
-                                             src_cont,
-                                             objname,
-                                             http_conn=self.http_connection)
-                except client.ClientException:
-                    pass
-
 
 class ContainerCollection(DAVCollection):
     def __init__(self, environ, path):
