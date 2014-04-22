@@ -432,7 +432,10 @@ class ObjectCollection(DAVCollection):
         for obj in objects:
             objname = obj.get('name', obj.get('subdir'))
             headers = {'X-Copy-From': '%s/%s' % (self.container, objname)}
-            newname = objname.replace(src, dst)
+            if src != "":
+                newname = objname.replace(src, dst)
+            else:
+                newname = src_cont + '/' + objname
             if newname[-1] == '/':
                 newname = newname.rstrip('/') + '/'
             try:
