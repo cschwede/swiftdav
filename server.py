@@ -10,7 +10,7 @@ config.update({
     "provider_mapping": {"": SwiftProvider()},
     "verbose": 1,
     "propsmanager": True,
-    "locksmanager": True,
+    "locksmanager": False,
     "acceptbasic": True,
     "acceptdigest": False,
     "defaultdigest": False,
