@@ -18,4 +18,4 @@ config.update({
     })
 app = WsgiDAVApp(config)
 
-serve(app, host="0.0.0.0", port=8000)
+serve(app, host="0.0.0.0", port=8000, max_request_body_size=5*1024*1024*1024)
