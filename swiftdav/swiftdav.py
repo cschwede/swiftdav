@@ -164,7 +164,7 @@ class ObjectResource(DAVNonCollection):
 
     def handleCopy(self, destPath, depthInfinity):
         dst = '/'.join(destPath.split('/')[2:])
-
+        dst_cont = destPath.split('/')[1]
         try:
             client.head_object(self.storage_url,
                                self.auth_token,
@@ -178,7 +178,7 @@ class ObjectResource(DAVNonCollection):
         try:
             client.put_object(self.storage_url,
                               self.auth_token,
-                              self.container,
+                              dst_cont,
                               dst,
                               headers=headers,
                               http_conn=self.http_connection)
@@ -432,10 +432,7 @@ class ObjectCollection(DAVCollection):
         for obj in objects:
             objname = obj.get('name', obj.get('subdir'))
             headers = {'X-Copy-From': '%s/%s' % (self.container, objname)}
-            if src != "":
-                newname = objname.replace(src, dst)
-            else:
-                newname = src_cont + '/' + objname
+            newname = objname.replace(src, dst)
             if newname[-1] == '/':
                 newname = newname.rstrip('/') + '/'
             try:
