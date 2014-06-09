@@ -156,3 +156,25 @@ class TestSwiftDav(unittest.TestCase):
         self.assertRaises(swiftclient.ClientException,
                           self.swiftclient.head_object,
                           self.dirname, self.filename)
+
+    def test_upload_with_match_and_since(self):
+        self.swiftclient.put_container(self.dirname)
+        headers = {
+            'IF_NONE_MATCH': '*',
+            'IF_MODIFIED_SINCE': 'Mon, 02 Jun 2014 00:00:00 GMT',
+        }
+        self.webdav.put(self.fullname, self.data, headers=headers)
+        time.sleep(0.5)
+        header, body = self.swiftclient.get_object(self.dirname, self.filename)
+        self.assertEqual(self.data, body)
+
+    def test_upload_with_match(self):
+        self.swiftclient.put_container(self.dirname)
+
+        headers = {
+            'IF_NONE_MATCH': '*',
+        }
+        self.webdav.put(self.fullname, self.data, headers=headers)
+        time.sleep(0.5)
+        header, body = self.swiftclient.get_object(self.dirname, self.filename)
+        self.assertEqual(self.data, body)

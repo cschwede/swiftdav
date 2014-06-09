@@ -141,11 +141,14 @@ class ObjectResource(DAVNonCollection):
 
     def getCreationDate(self):
         self.get_headers()
-        return float(self.headers.get('x-timestamp', 0))
+        timestamp = self.headers.get('x-timestamp')
+        if timestamp is not None:
+            timestamp = float(timestamp)
+        return timestamp
 
     def getEtag(self):
         self.get_headers()
-        return self.headers.get('etag', '')
+        return self.headers.get('etag')
 
     def getLastModified(self):
         """Return LastModified, which is identical to CreationDate."""
