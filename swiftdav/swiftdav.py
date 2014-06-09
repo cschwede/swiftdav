@@ -23,26 +23,37 @@ class DownloadFile(object):
     """A file-like object for downloading files from Openstack Swift."""
 
     def __init__(self, storage_url, auth_token, container, objname):
-        headers = {'X-Auth-Token': auth_token}
+        self.headers = {'X-Auth-Token': auth_token}
+        self.storage_url = storage_url
+        self.container = urllib.quote(container)
+        self.objname = urllib.quote(objname)
 
-        container = urllib.quote(container)
-        objname = urllib.quote(objname)
+        self.conn = None
+        self.resp = None
 
-        url = urlparse.urlparse(storage_url)
-        path = "%s/%s/%s" % (url.path, container, objname)
+        conn = self.get_conn()
+        conn.request('GET', self.path, None, self.headers)
+        resp = conn.getresponse()
+        conn.close()
+        if resp.status < 200 or resp.status >= 300:
+            raise Exception
+
+    def get_conn(self):
+        url = urlparse.urlparse(self.storage_url)
+        self.path = "%s/%s/%s" % (url.path, self.container, self.objname)
         if url.scheme == "http":
-            self.conn = httplib.HTTPConnection(url.netloc)
+            conn = httplib.HTTPConnection(url.netloc)
         elif url.scheme == "https":
-            self.conn = httplib.HTTPSConnection(url.netloc)
+            conn = httplib.HTTPSConnection(url.netloc)
         else:
             raise Exception
-
-        self.conn.request('GET', path, None, headers)
-        self.resp = self.conn.getresponse()
-        if self.resp.status < 200 or self.resp.status >= 300:
-            raise Exception
+        return conn
 
     def read(self, size):
+        if not self.resp:
+            self.conn = self.get_conn()
+            self.conn.request('GET', self.path, None, self.headers)
+            self.resp = self.conn.getresponse()
         return self.resp.read(size)
 
     def seek(self, position):
