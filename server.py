@@ -1,21 +1,36 @@
-from swiftdav.swiftdav import SwiftProvider, WsgiDAVDomainController
-from waitress import serve
-from wsgidav.wsgidav_app import DEFAULT_CONFIG, WsgiDAVApp
+# Copyright 2013 Christian Schwede <info@cschwede.de>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from swiftdav import swiftdav
+import waitress
+from wsgidav import wsgidav_app
 
 proxy = 'http://127.0.0.1:8080/auth/v1.0'
 insecure = False  # Set to True to disable SSL certificate validation
 
-config = DEFAULT_CONFIG.copy()
+config = wsgidav_app.DEFAULT_CONFIG.copy()
 config.update({
-    "provider_mapping": {"": SwiftProvider()},
+    "provider_mapping": {"": swiftdav.SwiftProvider()},
     "verbose": 1,
     "propsmanager": True,
     "locksmanager": False,
     "acceptbasic": True,
     "acceptdigest": False,
     "defaultdigest": False,
-    "domaincontroller": WsgiDAVDomainController(proxy, insecure)
-    })
-app = WsgiDAVApp(config)
+    "domaincontroller": swiftdav.WsgiDAVDomainController(proxy, insecure)
+})
+app = wsgidav_app.WsgiDAVApp(config)
 
-serve(app, host="0.0.0.0", port=8000, max_request_body_size=5*1024*1024*1024)
+waitress.serve(
+    app, host="0.0.0.0", port=8000, max_request_body_size=5*1024*1024*1024)

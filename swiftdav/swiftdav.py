@@ -1,3 +1,17 @@
+# Copyright 2013 Christian Schwede <info@cschwede.de>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # pylint:disable=E1101, C0103
 
 import httplib
@@ -8,9 +22,8 @@ import urlparse
 
 from swiftclient import client
 
-from wsgidav.dav_provider import DAVProvider, DAVCollection, DAVNonCollection
-from wsgidav.dav_error import DAVError, HTTP_NOT_FOUND, \
-    HTTP_INTERNAL_ERROR, HTTP_METHOD_NOT_ALLOWED, HTTP_CREATED
+from wsgidav import dav_error
+from wsgidav import dav_provider
 
 requests_log = logging.getLogger("requests")
 requests_log.setLevel(logging.WARNING)
@@ -93,7 +106,7 @@ class UploadFile(object):
         self.conn.close()
 
 
-class ObjectResource(DAVNonCollection):
+class ObjectResource(dav_provider.DAVNonCollection):
     def __init__(self, container, objectname, environ, objects=None):
         self.container = container
         self.objectname = objectname
@@ -101,7 +114,7 @@ class ObjectResource(DAVNonCollection):
         self.objects = objects
 
         path = '/' + self.container + '/' + self.objectname
-        DAVNonCollection.__init__(self, path, environ)
+        dav_provider.DAVNonCollection.__init__(self, path, environ)
         self.auth_token = self.environ.get('swift_auth_token')
         self.storage_url = self.environ.get('swift_storage_url')
 
@@ -197,7 +210,7 @@ class ObjectResource(DAVNonCollection):
                               headers=headers,
                               http_conn=self.http_connection)
             if self.environ.get("HTTP_OVERWRITE", '') != "T":
-                raise DAVError(HTTP_CREATED)
+                raise dav_error.DAVError(dav_error.HTTP_CREATED)
             return True
         except client.ClientException:
             return False
@@ -212,7 +225,7 @@ class ObjectResource(DAVNonCollection):
 
     def endWrite(self, withErrors):
         self.tmpfile.close()
-        raise DAVError(HTTP_CREATED)
+        raise dav_error.DAVError(dav_error.HTTP_CREATED)
 
     def supportRecursiveMove(self, destPath):
         return False
@@ -242,7 +255,7 @@ class ObjectResource(DAVNonCollection):
             pass
 
 
-class ObjectCollection(DAVCollection):
+class ObjectCollection(dav_provider.DAVCollection):
     def __init__(self, container, environ, prefix=None, path=None):
         self.path = path
         path = container
@@ -250,7 +263,7 @@ class ObjectCollection(DAVCollection):
             path = '/' + path
         if prefix:
             path += '/' + prefix
-        DAVCollection.__init__(self, path, environ)
+        dav_provider.DAVCollection.__init__(self, path, environ)
         self.name = path
         self.prefix = prefix
         self.container = container
@@ -396,7 +409,7 @@ class ObjectCollection(DAVCollection):
                                self.container,
                                name,
                                http_conn=self.http_connection)
-            raise DAVError(HTTP_METHOD_NOT_ALLOWED)
+            raise dav_error.DAVError(dav_error.HTTP_METHOD_NOT_ALLOWED)
         except client.ClientException:
             pass
 
@@ -406,7 +419,7 @@ class ObjectCollection(DAVCollection):
                                self.container,
                                name + '/',
                                http_conn=self.http_connection)
-            raise DAVError(HTTP_METHOD_NOT_ALLOWED)
+            raise dav_error.DAVError(dav_error.HTTP_METHOD_NOT_ALLOWED)
         except client.ClientException:
             pass
 
@@ -433,7 +446,7 @@ class ObjectCollection(DAVCollection):
                                  self.auth_token,
                                  dst_cont,
                                  http_conn=self.http_connection)
-        except:
+        except client.ClientException:
             pass
 
         _, objects = client.get_container(self.storage_url,
@@ -475,9 +488,10 @@ class ObjectCollection(DAVCollection):
             except client.ClientException:
                 pass
 
-class ContainerCollection(DAVCollection):
+
+class ContainerCollection(dav_provider.DAVCollection):
     def __init__(self, environ, path):
-        DAVCollection.__init__(self, '/', environ)
+        dav_provider.DAVCollection.__init__(self, '/', environ)
         self.path = path
 
         self.auth_token = self.environ.get('swift_auth_token')
@@ -500,9 +514,9 @@ class ContainerCollection(DAVCollection):
                                   container=name,
                                   http_conn=self.http_connection)
             return ObjectCollection(name, self.environ, path=self.path)
-        except client.ClientException, ex:
+        except client.ClientException as ex:
             if '404' in ex:
-                raise DAVError(HTTP_NOT_FOUND)
+                raise dav_error.DAVError(dav_error.HTTP_NOT_FOUND)
 
     def getDisplayName(self):
         return '/'
@@ -526,7 +540,7 @@ class ContainerCollection(DAVCollection):
                 name,
                 http_conn=self.http_connection)
         except client.ClientException:
-            raise DAVError(HTTP_INTERNAL_ERROR)
+            raise dav_error.DAVError(dav_error.HTTP_INTERNAL_ERROR)
 
     def supportRecursiveMove(self, destPath):
         return False
@@ -545,7 +559,7 @@ class ContainerCollection(DAVCollection):
             http_conn=self.http_connection)
 
 
-class SwiftProvider(DAVProvider):
+class SwiftProvider(dav_provider.DAVProvider):
     def __init__(self):
         super(SwiftProvider, self).__init__()
 
