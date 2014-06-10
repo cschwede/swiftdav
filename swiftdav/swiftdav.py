@@ -459,9 +459,9 @@ class ObjectCollection(dav_provider.DAVCollection):
         for obj in objects:
             objname = obj.get('name', obj.get('subdir'))
             headers = {'X-Copy-From': '%s/%s' % (self.container, objname)}
-            newname = objname.replace(src, dst)
-            if newname[-1] == '/':
-                newname = newname.rstrip('/') + '/'
+            newname = objname
+            if dst:
+                newname = "%s/%s" % (dst.rstrip('/'), objname)
             try:
                 client.put_object(self.storage_url,
                                   self.auth_token,

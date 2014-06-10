@@ -178,3 +178,18 @@ class TestSwiftDav(unittest.TestCase):
         time.sleep(0.5)
         header, body = self.swiftclient.get_object(self.dirname, self.filename)
         self.assertEqual(self.data, body)
+
+    def test_move_container_into_another_container(self):
+        self.swiftclient.put_container(self.dirname)
+        self.swiftclient.put_container(self.dirn2)
+        self.swiftclient.put_object(self.dirname, self.filename, self.data)
+
+        response = self.webdav.move(self.dirname + '/', self.dirn2 + '/' + self.dirname)
+        self.assertEqual(201, response)
+        header, body = self.swiftclient.get_object(self.dirn2 + '/' + self.dirname, self.filename)
+        self.assertEqual(self.data, body)
+
+        # Ensure file is removed from source
+        self.assertRaises(swiftclient.ClientException,
+                          self.swiftclient.head_object,
+                          self.dirname, self.filename)
