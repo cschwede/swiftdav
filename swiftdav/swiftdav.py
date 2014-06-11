@@ -45,7 +45,7 @@ class DownloadFile(object):
         self.resp = None
 
         conn = self.get_conn()
-        conn.request('GET', self.path, None, self.headers)
+        conn.request('HEAD', self.path, None, self.headers)
         resp = conn.getresponse()
         conn.close()
         if resp.status < 200 or resp.status >= 300:
