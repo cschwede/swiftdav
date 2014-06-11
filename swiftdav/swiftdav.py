@@ -397,6 +397,14 @@ class ObjectCollection(dav_provider.DAVCollection):
             except client.ClientException:
                 pass
 
+    def createEmptyResource(self, name):
+        client.put_object(self.storage_url,
+                          self.auth_token,
+                          self.container,
+                          name,
+                          http_conn=self.http_connection)
+        return ObjectResource(self.container, name, self.environ, self.objects)
+
     def createCollection(self, name):
         """Create a pseudo-folder."""
         if self.path:

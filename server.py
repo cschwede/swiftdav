@@ -24,7 +24,7 @@ config.update({
     "provider_mapping": {"": swiftdav.SwiftProvider()},
     "verbose": 1,
     "propsmanager": True,
-    "locksmanager": False,
+    "locksmanager": True,
     "acceptbasic": True,
     "acceptdigest": False,
     "defaultdigest": False,
