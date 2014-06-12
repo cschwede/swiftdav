@@ -190,30 +190,7 @@ class ObjectResource(dav_provider.DAVNonCollection):
             pass
 
     def handleCopy(self, destPath, depthInfinity):
-        dst = '/'.join(destPath.split('/')[2:])
-        dst_cont = destPath.split('/')[1]
-        try:
-            client.head_object(self.storage_url,
-                               self.auth_token,
-                               self.container,
-                               dst,
-                               http_conn=self.http_connection)
-        except client.ClientException:
-            pass
-
-        headers = {'X-Copy-From': self.path}
-        try:
-            client.put_object(self.storage_url,
-                              self.auth_token,
-                              dst_cont,
-                              dst,
-                              headers=headers,
-                              http_conn=self.http_connection)
-            if self.environ.get("HTTP_OVERWRITE", '') != "T":
-                raise dav_error.DAVError(dav_error.HTTP_CREATED)
-            return True
-        except client.ClientException:
-            return False
+        return False
 
     def beginWrite(self, contentType=None):
         content_length = self.environ.get('CONTENT_LENGTH')
@@ -236,7 +213,21 @@ class ObjectResource(dav_provider.DAVNonCollection):
         src_cont = self.path.split('/')[1]
         dst_cont = destPath.split('/')[1]
 
-        headers = {'X-Copy-From': '%s/%s' % (src_cont, src)}
+        headers = {'X-Copy-From': self.path}
+
+        try:
+            client.head_container(self.storage_url,
+                              self.auth_token,
+                              dst_cont,
+                              headers=headers,
+                              http_conn=self.http_connection)
+        except client.ClientException as ex:
+            client.put_container(self.storage_url,
+                              self.auth_token,
+                              dst_cont,
+                              headers=headers,
+                              http_conn=self.http_connection)
+
         try:
             client.put_object(self.storage_url,
                               self.auth_token,
@@ -444,57 +435,35 @@ class ObjectCollection(dav_provider.DAVCollection):
     def copyMoveSingle(self, destPath, isMove):
         src = '/'.join(self.path.split('/')[2:])
         dst = '/'.join(destPath.split('/')[2:])
-
         src_cont = self.path.split('/')[1]
         dst_cont = destPath.split('/')[1]
 
-        # Make sure target container exists
+        if self.is_subdir(src):
+            client.put_object(self.storage_url,
+                              self.auth_token,
+                              dst_cont,
+                              dst.rstrip('/') + '/',
+                              content_type='application/directory',
+                              http_conn=self.http_connection)
+            return
+
+        headers = {'X-Copy-From': self.path}
         try:
-            client.put_container(self.storage_url,
-                                 self.auth_token,
-                                 dst_cont,
-                                 http_conn=self.http_connection)
+            client.put_object(self.storage_url,
+                              self.auth_token,
+                              dst_cont,
+                              dst,
+                              headers=headers,
+                              http_conn=self.http_connection)
+
+            if isMove:
+                client.delete_object(self.storage_url,
+                                     self.auth_token,
+                                     src_cont,
+                                     src,
+                                     http_conn=self.http_connection)
         except client.ClientException:
             pass
-
-        _, objects = client.get_container(self.storage_url,
-                                          self.auth_token,
-                                          container=src_cont,
-                                          delimiter='/',
-                                          prefix=src,
-                                          http_conn=self.http_connection)
-
-        for obj in objects:
-            objname = obj.get('name', obj.get('subdir'))
-            headers = {'X-Copy-From': '%s/%s' % (self.container, objname)}
-            newname = objname
-            if dst:
-                newname = "%s/%s" % (dst.rstrip('/'), objname)
-            try:
-                client.put_object(self.storage_url,
-                                  self.auth_token,
-                                  dst_cont,
-                                  newname,
-                                  headers=headers,
-                                  http_conn=self.http_connection)
-                if isMove:
-                    client.delete_object(self.storage_url,
-                                         self.auth_token,
-                                         src_cont,
-                                         objname,
-                                         http_conn=self.http_connection)
-            except client.ClientException:
-                pass
-
-        # will only succeed if container is empty
-        if isMove:
-            try:
-                client.delete_container(self.storage_url,
-                                        self.auth_token,
-                                        self.container,
-                                        http_conn=self.http_connection)
-            except client.ClientException:
-                pass
 
 
 class ContainerCollection(dav_provider.DAVCollection):

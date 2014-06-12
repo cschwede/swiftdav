@@ -32,10 +32,17 @@ class TestSwiftDav(unittest.TestCase):
         self.filen2 = 'testfile2'
         self.fullname2 = '/%s/%s' % (self.dirname, self.filen2)
         self.data = 'dummy'
+        self.objectnames = [
+            self.filename,
+            self.filen2,
+            self.filen2 + '/a',
+            self.filen2 + '/a/b',
+            self.filen2 + '/a/b/c',
+        ]
 
     def tearDown(self):
-        for cont in [self.dirname, self.dirn2]:
-            for obj in [self.filename, self.filen2]:
+       for cont in [self.dirname, self.dirn2]:
+            for obj in self.objectnames:
                 try:
                     self.swiftclient.delete_object(cont, obj)
                 except swiftclient.ClientException:
@@ -97,7 +104,7 @@ class TestSwiftDav(unittest.TestCase):
         self.swiftclient.put_object(self.dirname, self.filename, self.data)
 
         response = self.webdav.copy(self.fullname, self.fullname + "2")
-        self.assertEqual(204, response)
+        self.assertEqual(201, response)
         header, body = self.swiftclient.get_object(self.dirname, self.filen2)
         self.assertEqual(self.data, body)
 
@@ -122,7 +129,7 @@ class TestSwiftDav(unittest.TestCase):
 
         target = '/%s/%s' % (self.dirn2, self.filename)
         response = self.webdav.copy(self.fullname, target)
-        self.assertEqual(204, response)
+        self.assertEqual(201, response)
         header, body = self.swiftclient.get_object(self.dirn2, self.filename)
         self.assertEqual(self.data, body)
 
@@ -188,6 +195,28 @@ class TestSwiftDav(unittest.TestCase):
         self.assertEqual(201, response)
         header, body = self.swiftclient.get_object(self.dirn2 + '/' + self.dirname, self.filename)
         self.assertEqual(self.data, body)
+
+        # Ensure file is removed from source
+        self.assertRaises(swiftclient.ClientException,
+                          self.swiftclient.head_object,
+                          self.dirname, self.filename)
+
+    def test_move_container_with_pseudofolders_into_another_container(self):
+        self.swiftclient.put_container(self.dirname)
+        self.swiftclient.put_container(self.dirn2)
+        response = self.webdav.mkcol(self.dirname + '/a')
+        response = self.webdav.mkcol(self.dirname + '/a/b')
+        self.swiftclient.put_object(self.dirname, self.filename + '/a/b/c', self.data)
+
+        response = self.webdav.move(self.dirname + '/', self.dirn2 + '/' + self.dirname)
+        self.assertEqual(201, response)
+        header, body = self.swiftclient.get_object(self.dirn2 + '/' + self.dirname, self.filename + '/a/b/c')
+        self.assertEqual(self.data, body)
+
+        # Ensure there is no folder duplication
+        self.assertRaises(swiftclient.ClientException,
+                          self.swiftclient.head_object,
+                          self.dirn2 + '/' + self.dirname, 'a/b/a/b/')
 
         # Ensure file is removed from source
         self.assertRaises(swiftclient.ClientException,
