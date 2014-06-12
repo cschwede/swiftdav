@@ -42,6 +42,10 @@ def sanitize(name):
     """
     return re.sub('/+', '/', name).lstrip('/')
 
+def getnames(path):
+    elements = [x for x in path.split('/') if x]
+    return (elements[0], '/'.join(elements[1:]))
+
 
 class DownloadFile(object):
     """A file-like object for downloading files from Openstack Swift."""
@@ -219,10 +223,8 @@ class ObjectResource(dav_provider.DAVNonCollection):
         return False
 
     def copyMoveSingle(self, destPath, isMove):
-        src = '/'.join(self.path.split('/')[2:])
-        dst = '/'.join(destPath.split('/')[2:])
-        src_cont = self.path.split('/')[1]
-        dst_cont = destPath.split('/')[1]
+        src_cont, src = getnames(self.path)
+        dst_cont, dst = getnames(destPath)
 
         headers = {'X-Copy-From': self.path}
 
@@ -444,10 +446,9 @@ class ObjectCollection(dav_provider.DAVCollection):
         return False
 
     def copyMoveSingle(self, destPath, isMove):
-        src = '/'.join(self.path.split('/')[2:])
-        dst = '/'.join(destPath.split('/')[2:])
-        src_cont = self.path.split('/')[1]
-        dst_cont = destPath.split('/')[1]
+        src_cont, src = getnames(self.path)
+        dst_cont, dst = getnames(destPath)
+
 
         # Ensure target container exists
         if src_cont != dst_cont:
