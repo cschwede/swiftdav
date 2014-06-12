@@ -1,8 +1,8 @@
 swiftdav
 ========
 
-Storage backend for wsgidav using Openstack Swift. Sample config uses Pylons Waitress
-to allow chunked uploads; this is required by some clients (eg. OS X Finder).
+Webdav server using Openstack Swift as a backend. Sample config uses Pylons
+Waitress to allow chunked uploads; this is required by some clients (eg. OSX).
 
 Quick Install
 -------------
@@ -22,14 +22,30 @@ Quick Install
 4) You have to use ';' instead of ':' to separate account and user in your username,
    for example 'test;tester'. Basic auth uses ':' already to separate username and password.
 
+Notes
+-----
+
+If you're using davfs2 you could use the following settings in /etc/davfs2/davfs2.conf:
+
+    use_locks       0
+    precheck        0
+
+Due to Swifts eventual consistency there is no guarentee that locking and prechecking succeeds.
+However, swiftdav supports some fake locking because some clients require this to enable
+write access.
 
 Testing
 -------
 
-swiftclient recently switched from using httplib to requests. Instead of
-rewriting the existing tests just use litmus for testing; this ensures
-that the webdav functionality passes well-known tests. You need a running
-Swift cluster for tests, a SAIO installation works fine.
+Functional tests require a running server and Swift installation (SAIO). Just
+start them with your favorite test runner, eg.:
+
+    nosetests
+
+There is an additional shell script to execute some basic operations on a davfs2
+mountpoint located in test/test_davfs2.sh.
+
+You can also run the litmus test suite:
 
 Source code: http://www.webdav.org/neon/litmus/
 
