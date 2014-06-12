@@ -164,6 +164,17 @@ class TestSwiftDav(unittest.TestCase):
                           self.swiftclient.head_object,
                           self.dirname, self.filename)
 
+    def test_move_pseudofolder_to_container(self):
+        self.swiftclient.put_container(self.dirname)
+        self.swiftclient.put_object(self.dirname, 'some/' + self.filename, self.data)
+        src = self.dirname + '/some/'
+
+        response = self.webdav.move(src, self.dirn2 + '/')
+        self.assertEqual(201, response)
+        header, body = self.swiftclient.get_object(self.dirn2, self.filename)
+        self.assertEqual(self.data, body)
+
+
     def test_upload_with_match_and_since(self):
         self.swiftclient.put_container(self.dirname)
         headers = {

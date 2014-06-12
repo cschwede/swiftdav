@@ -16,6 +16,7 @@
 
 import httplib
 import logging
+import re
 import socket
 import urllib
 import urlparse
@@ -30,6 +31,16 @@ requests_log.setLevel(logging.WARNING)
 
 swiftclient_log = logging.getLogger("swiftclient")
 swiftclient_log.setLevel(logging.WARNING)
+
+
+def sanitize(name):
+    """
+    Sanitize object names
+
+    - remove multiple slashes in name
+    - remove leading slash
+    """
+    return re.sub('/+', '/', name).lstrip('/')
 
 
 class DownloadFile(object):
@@ -215,24 +226,24 @@ class ObjectResource(dav_provider.DAVNonCollection):
 
         headers = {'X-Copy-From': self.path}
 
-        try:
-            client.head_container(self.storage_url,
-                              self.auth_token,
-                              dst_cont,
-                              headers=headers,
-                              http_conn=self.http_connection)
-        except client.ClientException as ex:
-            client.put_container(self.storage_url,
-                              self.auth_token,
-                              dst_cont,
-                              headers=headers,
-                              http_conn=self.http_connection)
+        # Ensure target container exists
+        if src_cont != dst_cont:
+            try:
+                client.head_container(self.storage_url,
+                                  self.auth_token,
+                                  dst_cont,
+                                  http_conn=self.http_connection)
+            except client.ClientException:
+                client.put_container(self.storage_url,
+                                  self.auth_token,
+                                  dst_cont,
+                                  http_conn=self.http_connection)
 
         try:
             client.put_object(self.storage_url,
                               self.auth_token,
                               dst_cont,
-                              dst,
+                              sanitize(dst),
                               headers=headers,
                               http_conn=self.http_connection)
 
@@ -392,7 +403,7 @@ class ObjectCollection(dav_provider.DAVCollection):
         client.put_object(self.storage_url,
                           self.auth_token,
                           self.container,
-                          name,
+                          sanitize(name),
                           http_conn=self.http_connection)
         return ObjectResource(self.container, name, self.environ, self.objects)
 
@@ -425,7 +436,7 @@ class ObjectCollection(dav_provider.DAVCollection):
         client.put_object(self.storage_url,
                           self.auth_token,
                           self.container,
-                          name + '/',
+                          sanitize(name).rstrip('/') + '/',
                           content_type='application/directory',
                           http_conn=self.http_connection)
 
@@ -438,11 +449,24 @@ class ObjectCollection(dav_provider.DAVCollection):
         src_cont = self.path.split('/')[1]
         dst_cont = destPath.split('/')[1]
 
+        # Ensure target container exists
+        if src_cont != dst_cont:
+            try:
+                client.head_container(self.storage_url,
+                                  self.auth_token,
+                                  dst_cont,
+                                  http_conn=self.http_connection)
+            except client.ClientException:
+                client.put_container(self.storage_url,
+                                  self.auth_token,
+                                  dst_cont,
+                                  http_conn=self.http_connection)
+
         if self.is_subdir(src):
             client.put_object(self.storage_url,
                               self.auth_token,
                               dst_cont,
-                              dst.rstrip('/') + '/',
+                              sanitize(dst).rstrip('/') + '/',
                               content_type='application/directory',
                               http_conn=self.http_connection)
             return
@@ -452,7 +476,7 @@ class ObjectCollection(dav_provider.DAVCollection):
             client.put_object(self.storage_url,
                               self.auth_token,
                               dst_cont,
-                              dst,
+                              sanitize(dst),
                               headers=headers,
                               http_conn=self.http_connection)
 
