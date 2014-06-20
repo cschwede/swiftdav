@@ -15,6 +15,7 @@
 import time
 import unittest
 
+from nose.tools import nottest
 import swiftclient
 import tinydav
 
@@ -233,3 +234,17 @@ class TestSwiftDav(unittest.TestCase):
         self.assertRaises(swiftclient.ClientException,
                           self.swiftclient.head_object,
                           self.dirname, self.filename)
+
+    @nottest
+    def test_upload_bigfile(self):
+        # Speed depends highly on the used Swift cluster (remote, SSD, ...)
+        self.swiftclient.put_container(self.dirname)
+        data = ' ' * 1024 * 1024 * 25 # 25 MiB
+        start = time.time()
+        self.webdav.put(self.fullname, data)
+        end = time.time()
+        time_taken = end - start
+        time.sleep(0.5)
+        response = self.swiftclient.head_object(self.dirname, self.filename)
+        self.assertEqual(len(data), int(response.get('content-length')))
+        self.assertTrue(time_taken < 2.5)
