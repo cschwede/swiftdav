@@ -63,6 +63,7 @@ class DownloadFile(object):
         conn.request('HEAD', self.path, None, self.headers)
         resp = conn.getresponse()
         conn.close()
+        self.closed = True
         if resp.status < 200 or resp.status >= 300:
             raise Exception
 
@@ -111,14 +112,17 @@ class UploadFile(object):
         else:
             raise Exception
 
+        self.closed = False
         self.conn.request('PUT', path, None, headers)
 
     def write(self, data):
         self.conn.send('%x\r\n%s\r\n' % (len(data), data))
 
     def close(self):
-        self.conn.send('0\r\n\r\n')
-        self.conn.close()
+        if not self.closed:
+            self.conn.send('0\r\n\r\n')
+            self.conn.close()
+            self.closed = True
 
 
 class ObjectResource(dav_provider.DAVNonCollection):
@@ -215,9 +219,11 @@ class ObjectResource(dav_provider.DAVNonCollection):
                                   content_length)
         return self.tmpfile
 
+
     def endWrite(self, withErrors):
-        self.tmpfile.close()
-        raise dav_error.DAVError(dav_error.HTTP_CREATED)
+        if self.tmpfile:
+            self.tmpfile.close()
+            raise dav_error.DAVError(dav_error.HTTP_CREATED)
 
     def supportRecursiveMove(self, destPath):
         return False
