@@ -235,6 +235,21 @@ class TestSwiftDav(unittest.TestCase):
                           self.swiftclient.head_object,
                           self.dirname, self.filename)
 
+    def test_last_modified_etag(self):
+        self.swiftclient.put_container(self.dirname)
+        self.swiftclient.put_object(self.dirname, self.filename, "")
+        data = self.swiftclient.head_object(self.dirname, self.filename)
+
+        etag = data.get('etag')
+        timestamp = data.get('x-timestamp')
+        creationdate = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ", time.localtime(float(timestamp)))
+
+        resp = self.webdav.propfind(
+            self.fullname, properties=["creationdate", "getetag"])
+        self.assertTrue(etag in resp.content)
+        self.assertTrue(creationdate in resp.content)
+
     @nottest
     def test_upload_bigfile(self):
         # Speed depends highly on the used Swift cluster (remote, SSD, ...)

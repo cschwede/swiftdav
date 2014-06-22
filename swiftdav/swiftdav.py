@@ -18,6 +18,7 @@ import httplib
 import logging
 import re
 import socket
+import time
 import urllib
 import urlparse
 
@@ -157,7 +158,9 @@ class ObjectResource(dav_provider.DAVNonCollection):
             data = self.objects.get(self.objectname)
             if data:
                 self.headers = {'content-length': data.get('bytes'),
-                                'etag': data.get('hash'), }
+                                'etag': data.get('hash'),
+                                'last_modified': data.get('last_modified'),
+                                }
             else:
                 try:
                     self.headers = client.head_object(
@@ -184,10 +187,11 @@ class ObjectResource(dav_provider.DAVNonCollection):
 
     def getCreationDate(self):
         self.get_headers()
-        timestamp = self.headers.get('x-timestamp')
-        if timestamp is not None:
-            timestamp = float(timestamp)
-        return timestamp
+        lastmod = self.headers.get('last_modified')
+        try:
+            return time.mktime(time.strptime(lastmod, "%Y-%m-%dT%H:%M:%S.%f"))
+        except (ValueError, TypeError):
+            pass
 
     def getEtag(self):
         self.get_headers()
