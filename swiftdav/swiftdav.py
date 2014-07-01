@@ -195,7 +195,10 @@ class ObjectResource(dav_provider.DAVNonCollection):
 
     def getEtag(self):
         self.get_headers()
-        return self.headers.get('etag')
+        etag = self.headers.get('etag')
+        if etag:
+            return str(etag)
+        return None
 
     def getLastModified(self):
         """Return LastModified, which is identical to CreationDate."""
