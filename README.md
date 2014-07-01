@@ -13,7 +13,8 @@ Quick Install
     cd swiftdav
     sudo python setup.py install
 
-2) Modify server.py and configure your Swift proxy settings. Defaults to 'http://127.0.0.1:8080/auth/v1.0'
+2) Modify server.py and configure your Swift proxy settings. Defaults to 'http://127.0.0.1:8080/auth/v1.0'.
+   If you are using Keystone you need to set the auth_version to 2 and use the Keystone URL.
 
 3) Run wsgidav with OpenStack Swift backend:
 

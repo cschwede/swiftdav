@@ -22,10 +22,10 @@ import tinydav
 
 class TestSwiftDav(unittest.TestCase):
     def setUp(self):
-        self.webdav = tinydav.WebDAVClient("127.0.0.1", 8000)
-        self.webdav.setbasicauth("test;tester", "testing")
+        self.webdav = tinydav.WebDAVClient("127.0.0.1", 8001)
+        self.webdav.setbasicauth("demo;demo", "devstack")
         self.swiftclient = swiftclient.Connection(
-            'http://127.0.0.1:8080/auth/v1.0', 'test:tester', 'testing')
+            'http://127.0.0.1:5000/v2.0', 'demo', 'devstack', tenant_name='demo', auth_version=2)
         self.dirname = 'swiftdav_test_%s' % str(time.time())
         self.filename = 'testfile'
         self.fullname = '/%s/%s' % (self.dirname, self.filename)

@@ -588,9 +588,10 @@ class SwiftProvider(dav_provider.DAVProvider):
 
 class WsgiDAVDomainController(object):
 
-    def __init__(self, swift_auth_url, insecure=False):
+    def __init__(self, swift_auth_url, insecure=False, auth_version=1):
         self.swift_auth_url = swift_auth_url
         self.insecure = insecure
+        self.auth_version = auth_version
 
     def __repr__(self):
         return self.__class__.__name__
@@ -608,8 +609,15 @@ class WsgiDAVDomainController(object):
 
         try:
             username = username.replace(';', ':')
-            (storage_url, auth_token) = client.get_auth(self.swift_auth_url,
-                                                        username, password)
+            kwargs = {}
+            if self.auth_version == 2:
+                username, tenantname = username.split(':')
+                kwargs = {
+                    'os_options': {
+                        'tenant_name': tenantname}, 'auth_version': 2}
+            (storage_url, auth_token) = client.get_auth(
+                self.swift_auth_url, username, password, **kwargs)
+            print storage_url, auth_token
             environ["swift_storage_url"] = storage_url
             environ["swift_auth_token"] = auth_token
             environ["swift_usernampe"] = username

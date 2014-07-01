@@ -16,7 +16,14 @@ from swiftdav import swiftdav
 import waitress
 from wsgidav import wsgidav_app
 
+# Settings for auth V1, for example tempauth or swauth
 proxy = 'http://127.0.0.1:8080/auth/v1.0'
+auth_version = 1
+
+# In case of Keystone use the following setting (example):
+# proxy = 'http://127.0.0.1:5000/v2.0'
+# auth_version = 2
+
 insecure = False  # Set to True to disable SSL certificate validation
 
 config = wsgidav_app.DEFAULT_CONFIG.copy()
@@ -28,7 +35,8 @@ config.update({
     "acceptbasic": True,
     "acceptdigest": False,
     "defaultdigest": False,
-    "domaincontroller": swiftdav.WsgiDAVDomainController(proxy, insecure)
+    "domaincontroller": swiftdav.WsgiDAVDomainController(
+        proxy, insecure, auth_version=auth_version)
 })
 app = wsgidav_app.WsgiDAVApp(config)
 
