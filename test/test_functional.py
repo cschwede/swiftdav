@@ -22,10 +22,10 @@ import tinydav
 
 class TestSwiftDav(unittest.TestCase):
     def setUp(self):
-        self.webdav = tinydav.WebDAVClient("127.0.0.1", 8001)
-        self.webdav.setbasicauth("demo;demo", "devstack")
+        self.webdav = tinydav.WebDAVClient("127.0.0.1", 8000)
+        self.webdav.setbasicauth("test;tester", "testing")
         self.swiftclient = swiftclient.Connection(
-            'http://127.0.0.1:5000/v2.0', 'demo', 'devstack', tenant_name='demo', auth_version=2)
+            'http://127.0.0.1:8080/auth/v1.0', 'test:tester', 'testing')
         self.dirname = 'swiftdav_test_%s' % str(time.time())
         self.filename = 'testfile'
         self.fullname = '/%s/%s' % (self.dirname, self.filename)
@@ -35,7 +35,10 @@ class TestSwiftDav(unittest.TestCase):
         self.data = 'dummy'
         self.objectnames = [
             self.filename,
+            self.filename + '/',
+            self.filename + '/a',
             self.filen2,
+            self.filen2 + '/',
             self.filen2 + '/a',
             self.filen2 + '/a/b',
             self.filen2 + '/a/b/c',
@@ -100,81 +103,36 @@ class TestSwiftDav(unittest.TestCase):
                           self.swiftclient.head_object,
                           self.dirname, self.filename)
 
-    def test_copy_file(self):
-        self.swiftclient.put_container(self.dirname)
-        self.swiftclient.put_object(self.dirname, self.filename, self.data)
-
-        response = self.webdav.copy(self.fullname, self.fullname + "2")
-        self.assertEqual(201, response)
-        header, body = self.swiftclient.get_object(self.dirname, self.filen2)
-        self.assertEqual(self.data, body)
-
-    def test_move_file(self):
-        self.swiftclient.put_container(self.dirname)
-        self.swiftclient.put_object(self.dirname, self.filename, self.data)
-
-        response = self.webdav.move(self.fullname, self.fullname2)
-        self.assertEqual(201, response)
-        header, body = self.swiftclient.get_object(self.dirname, self.filen2)
-        self.assertEqual(self.data, body)
-
-        # Ensure file is removed from source
-        self.assertRaises(swiftclient.ClientException,
-                          self.swiftclient.head_object,
-                          self.dirname, self.filename)
-
-    def test_copy_to_other_container(self):
-        self.swiftclient.put_container(self.dirname)
-        self.swiftclient.put_container(self.dirn2)
-        self.swiftclient.put_object(self.dirname, self.filename, self.data)
-
-        target = '/%s/%s' % (self.dirn2, self.filename)
-        response = self.webdav.copy(self.fullname, target)
-        self.assertEqual(201, response)
-        header, body = self.swiftclient.get_object(self.dirn2, self.filename)
-        self.assertEqual(self.data, body)
-
-    def test_move_to_other_container(self):
-        self.swiftclient.put_container(self.dirname)
-        self.swiftclient.put_container(self.dirn2)
-        self.swiftclient.put_object(self.dirname, self.filename, self.data)
-
-        target = '/%s/%s' % (self.dirn2, self.filename)
-        response = self.webdav.move(self.fullname, target)
-        self.assertEqual(201, response)
-        header, body = self.swiftclient.get_object(self.dirn2, self.filename)
-        self.assertEqual(self.data, body)
-
-        # Ensure file is removed from source
-        self.assertRaises(swiftclient.ClientException,
-                          self.swiftclient.head_object,
-                          self.dirname, self.filename)
-
     def test_move_container(self):
-        self.swiftclient.put_container(self.dirname)
-        self.swiftclient.put_container(self.dirn2)
-        self.swiftclient.put_object(self.dirname, self.filename, self.data)
+		self.swiftclient.put_container(self.dirname)
+		response = self.webdav.move(self.dirname + '/', self.dirn2 + '/')
+		self.assertEqual(201, response)
+		self.assertRaises(swiftclient.ClientException,
+                          self.swiftclient.head_container,
+                          self.dirname)
+		self.assertTrue(self.swiftclient.head_container(self.dirn2))
 
-        response = self.webdav.move(self.dirname + '/', self.dirn2 + '/')
-        self.assertEqual(204, response)
-        header, body = self.swiftclient.get_object(self.dirn2, self.filename)
-        self.assertEqual(self.data, body)
+    def test_move_pseudofolder(self):
+        response = self.webdav.mkcol(self.dirname)
+        response = self.webdav.mkcol(self.dirname + '/' + self.filename + '/')
+        self.assertEqual(201, response)
+        response = self.webdav.move(self.dirname + '/' + self.filename + '/', 
+                                    self.dirname + '/' + self.filen2 + '/')
+        self.assertEqual(201, response)
 
         # Ensure file is removed from source
         self.assertRaises(swiftclient.ClientException,
                           self.swiftclient.head_object,
-                          self.dirname, self.filename)
+                          self.dirname, self.filename + '/')
 
-    def test_move_pseudofolder_to_container(self):
-        self.swiftclient.put_container(self.dirname)
-        self.swiftclient.put_object(self.dirname, 'some/' + self.filename, self.data)
-        src = self.dirname + '/some/'
-
-        response = self.webdav.move(src, self.dirn2 + '/')
-        self.assertEqual(201, response)
-        header, body = self.swiftclient.get_object(self.dirn2, self.filename)
-        self.assertEqual(self.data, body)
-
+    def test_move_non_empty_pseudofolder(self):
+        self.webdav.mkcol(self.dirname)
+        self.webdav.mkcol(self.dirname + '/' + self.filename + '/')
+        self.webdav.put(self.dirname + '/' + self.filename + '/a', self.data)
+        self.assertRaises(tinydav.HTTPUserError,
+                          self.webdav.move,
+                          self.dirname + '/' + self.filename + '/',
+                          self.dirname + '/' + self.filen2 + '/')
 
     def test_upload_with_match_and_since(self):
         self.swiftclient.put_container(self.dirname)
@@ -197,43 +155,6 @@ class TestSwiftDav(unittest.TestCase):
         time.sleep(0.5)
         header, body = self.swiftclient.get_object(self.dirname, self.filename)
         self.assertEqual(self.data, body)
-
-    def test_move_container_into_another_container(self):
-        self.swiftclient.put_container(self.dirname)
-        self.swiftclient.put_container(self.dirn2)
-        self.swiftclient.put_object(self.dirname, self.filename, self.data)
-
-        response = self.webdav.move(self.dirname + '/', self.dirn2 + '/' + self.dirname)
-        self.assertEqual(201, response)
-        header, body = self.swiftclient.get_object(self.dirn2 + '/' + self.dirname, self.filename)
-        self.assertEqual(self.data, body)
-
-        # Ensure file is removed from source
-        self.assertRaises(swiftclient.ClientException,
-                          self.swiftclient.head_object,
-                          self.dirname, self.filename)
-
-    def test_move_container_with_pseudofolders_into_another_container(self):
-        self.swiftclient.put_container(self.dirname)
-        self.swiftclient.put_container(self.dirn2)
-        response = self.webdav.mkcol(self.dirname + '/a')
-        response = self.webdav.mkcol(self.dirname + '/a/b')
-        self.swiftclient.put_object(self.dirname, self.filename + '/a/b/c', self.data)
-
-        response = self.webdav.move(self.dirname + '/', self.dirn2 + '/' + self.dirname)
-        self.assertEqual(201, response)
-        header, body = self.swiftclient.get_object(self.dirn2 + '/' + self.dirname, self.filename + '/a/b/c')
-        self.assertEqual(self.data, body)
-
-        # Ensure there is no folder duplication
-        self.assertRaises(swiftclient.ClientException,
-                          self.swiftclient.head_object,
-                          self.dirn2 + '/' + self.dirname, 'a/b/a/b/')
-
-        # Ensure file is removed from source
-        self.assertRaises(swiftclient.ClientException,
-                          self.swiftclient.head_object,
-                          self.dirname, self.filename)
 
     def test_last_modified_etag(self):
         self.swiftclient.put_container(self.dirname)

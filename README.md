@@ -35,6 +35,11 @@ Due to Swifts eventual consistency there is no guarentee that locking and preche
 However, swiftdav supports some fake locking because some clients require this to enable
 write access.
 
+Renaming is currently only allowed for empty containers and empty pseudofolders. Copying, moving
+and renaming of containers and objects is only possible by executing a remote COPY and this
+requires a lot of resources and is a non-atomic operation. This can create various problems on
+the client side and is thus no longer supported.
+
 Testing
 -------
 
@@ -46,7 +51,8 @@ start them with your favorite test runner, eg.:
 There is an additional shell script to execute some basic operations on a davfs2
 mountpoint located in test/test_davfs2.sh.
 
-You can also run the litmus test suite:
+You can also run the litmus test suite. However, a lot of tests will fail because copying
+and moving of objects as well as proper locking are not supported.
 
 Source code: http://www.webdav.org/neon/litmus/
 

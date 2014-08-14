@@ -232,45 +232,6 @@ class ObjectResource(dav_provider.DAVNonCollection):
             self.tmpfile.close()
             raise dav_error.DAVError(dav_error.HTTP_CREATED)
 
-    def supportRecursiveMove(self, destPath):
-        return False
-
-    def copyMoveSingle(self, destPath, isMove):
-        src_cont, src = getnames(self.path)
-        dst_cont, dst = getnames(destPath)
-
-        headers = {'X-Copy-From': self.path}
-
-        # Ensure target container exists
-        if src_cont != dst_cont:
-            try:
-                client.head_container(self.storage_url,
-                                  self.auth_token,
-                                  dst_cont,
-                                  http_conn=self.http_connection)
-            except client.ClientException:
-                client.put_container(self.storage_url,
-                                  self.auth_token,
-                                  dst_cont,
-                                  http_conn=self.http_connection)
-
-        try:
-            client.put_object(self.storage_url,
-                              self.auth_token,
-                              dst_cont,
-                              sanitize(dst),
-                              headers=headers,
-                              http_conn=self.http_connection)
-
-            if isMove:
-                client.delete_object(self.storage_url,
-                                     self.auth_token,
-                                     src_cont,
-                                     src,
-                                     http_conn=self.http_connection)
-        except client.ClientException:
-            pass
-
 
 class ObjectCollection(dav_provider.DAVCollection):
     def __init__(self, container, environ, prefix=None, path=None):
@@ -308,8 +269,8 @@ class ObjectCollection(dav_provider.DAVCollection):
         The latter one will return en empty result set, thus this will be used
         to differentiate between the possibilites.
         """
-
         name = name.strip('/')
+        name = name.replace(self.container + '/', '')
 
         obj = self.objects.get(name, self.objects.get(name + '/'))
         if not obj:
@@ -456,52 +417,65 @@ class ObjectCollection(dav_provider.DAVCollection):
                           http_conn=self.http_connection)
 
     def supportRecursiveMove(self, destPath):
-        return False
+        """ Simulate support for RecursiveMove """
 
-    def copyMoveSingle(self, destPath, isMove):
-        src_cont, src = getnames(self.path)
-        dst_cont, dst = getnames(destPath)
+        return True
 
+    def moveRecursive(self, newname):
+        """ Move/rename a container.
 
-        # Ensure target container exists
-        if src_cont != dst_cont:
+        This is only working for empty containers and objects with a size of 0.
+        Required by some clients because they create a folder "New folder" first.
+
+        For all other requests this will simply return HTTP_FORBIDDEN. """
+        oldname = self.path.lstrip('/')
+        newname = newname.lstrip('/')
+
+        if '/' not in oldname:
             try:
-                client.head_container(self.storage_url,
-                                  self.auth_token,
-                                  dst_cont,
-                                  http_conn=self.http_connection)
-            except client.ClientException:
+                # Container deletion will fail if not empty
+                client.delete_container(self.storage_url,
+                                        self.auth_token,
+                                        oldname)
                 client.put_container(self.storage_url,
-                                  self.auth_token,
-                                  dst_cont,
-                                  http_conn=self.http_connection)
-
-        if self.is_subdir(src):
-            client.put_object(self.storage_url,
-                              self.auth_token,
-                              dst_cont,
-                              sanitize(dst).rstrip('/') + '/',
-                              content_type='application/directory',
-                              http_conn=self.http_connection)
-            return
-
-        headers = {'X-Copy-From': self.path}
-        try:
-            client.put_object(self.storage_url,
-                              self.auth_token,
-                              dst_cont,
-                              sanitize(dst),
-                              headers=headers,
-                              http_conn=self.http_connection)
-
-            if isMove:
-                client.delete_object(self.storage_url,
                                      self.auth_token,
-                                     src_cont,
-                                     src,
-                                     http_conn=self.http_connection)
-        except client.ClientException:
-            pass
+                                     newname)
+            except client.ClientException:
+                raise dav_error.DAVError(dav_error.HTTP_FORBIDDEN)
+
+        else:
+            old_container, _, old_object = oldname.partition('/')
+            new_container, _, new_object = newname.partition('/')
+            if old_container != new_container:
+                raise dav_error.DAVError(dav_error.HTTP_FORBIDDEN)
+
+            # If it is a pseudofolder, check that it is empty
+            _, objects = client.get_container(
+                self.storage_url,
+                self.auth_token,
+                container=self.container,
+                delimiter='/',
+                prefix=sanitize(old_object).rstrip('/') + '/',
+                http_conn=self.http_connection)
+            if len(objects) != 1:  # first object is the pseudofolder entry
+                raise dav_error.DAVError(dav_error.HTTP_FORBIDDEN)
+
+            # also check if the object is empty
+            if objects[0].get('bytes') != 0:
+                raise dav_error.DAVError(dav_error.HTTP_FORBIDDEN)
+
+            # Do a COPY to preserve existing metadata and content-type
+            client.put_object(self.storage_url,
+								  self.auth_token,
+								  self.container,
+								  sanitize(new_object),
+                                  headers = {'X-Copy-From': '/' + oldname + '/'},
+								  http_conn=self.http_connection)
+            client.delete_object(self.storage_url,
+                                 self.auth_token,
+                                 self.container,
+                                 old_object + '/',
+                                 http_conn=self.http_connection)
 
 
 class ContainerCollection(dav_provider.DAVCollection):
