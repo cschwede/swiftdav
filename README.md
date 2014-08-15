@@ -40,6 +40,14 @@ and renaming of containers and objects is only possible by executing a remote CO
 requires a lot of resources and is a non-atomic operation. This can create various problems on
 the client side and is thus no longer supported.
 
+Accessing Webdav using Windows
+------------------------------
+There are a few settings you might need to change:
+
+1. Slow response on Windows 7: http://support.microsoft.com/kb/2445570
+2. Problems with files larger than 50MB: http://support.microsoft.com/kb/2668751
+3. Error "The folder name is not valid": http://support.microsoft.com/kb/928692
+
 Testing
 -------
 
