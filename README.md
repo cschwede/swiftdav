@@ -1,11 +1,9 @@
-swiftdav
-========
+# swiftdav
 
 Webdav server using Openstack Swift as a backend. Sample config uses Pylons
 Waitress to allow chunked uploads; this is required by some clients (eg. OSX).
 
-Quick Install
--------------
+## Quick Install
 
 1) Install swiftdav:
 
@@ -23,10 +21,10 @@ Quick Install
 4) You have to use ';' instead of ':' to separate account and user in your username,
    for example 'test;tester'. Basic auth uses ':' already to separate username and password.
 
-Notes
------
+## Notes
 
-If you're using davfs2 you could use the following settings in /etc/davfs2/davfs2.conf:
+### davfs2
+If you're using [davfs2](http://savannah.nongnu.org/projects/davfs2/) you could use the following settings in /etc/davfs2/davfs2.conf:
 
     use_locks       0
     precheck        0
@@ -35,13 +33,13 @@ Due to Swifts eventual consistency there is no guarentee that locking and preche
 However, swiftdav supports some fake locking because some clients require this to enable
 write access.
 
+### Renaming
 Renaming is currently only allowed for empty containers and empty pseudofolders. Copying, moving
 and renaming of containers and objects is only possible by executing a remote COPY and this
 requires a lot of resources and is a non-atomic operation. This can create various problems on
 the client side and is thus no longer supported.
 
-Accessing Webdav using Windows
-------------------------------
+### Windows
 There are a few settings you might need to change:
 
 1. Slow response on Windows 7: http://support.microsoft.com/kb/2445570
