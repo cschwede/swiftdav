@@ -585,7 +585,7 @@ class WsgiDAVDomainController(object):
             username = username.replace(';', ':')
             kwargs = {}
             if self.auth_version == 2:
-                username, tenantname = username.split(':')
+                tenantname, username = username.split(':')
                 kwargs = {
                     'os_options': {
                         'tenant_name': tenantname}, 'auth_version': 2}
